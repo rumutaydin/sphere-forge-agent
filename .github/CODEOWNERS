@@ -1,0 +1,19 @@
+# Replace the placeholders with GitHub usernames once the team is formed.
+# Until then every path falls back to the repo owner.
+*                                   @rumutaydin
+
+# Track A - Measure
+# /forge/metrics.py /forge/geometry.py /forge/render.py /forge/bench.py
+# /forge/sensitivity.py /forge/__main__.py /forge/llm.py /bench/ /results/ /scripts/
+#                                   TRACK_A_USERNAME
+
+# Track B - Understand
+# /forge/stages/understand.py /forge/library/
+#                                   TRACK_B_USERNAME
+
+# Track C - Build
+# /forge/stages/build.py /forge/stages/verify.py /forge/stages/select.py /forge/backends/
+#                                   TRACK_C_USERNAME
+
+# Shared: everyone reviews
+# /forge/types.py /forge/pipeline.py

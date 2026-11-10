@@ -1,0 +1,1 @@
+An open-top electronics enclosure. Outer size 100 mm (X) by 60 mm (Y) by 40 mm (Z), centred in X and Y with the base on Z=0. The four vertical outer edges are rounded with an 8 mm radius. Walls and floor are 3 mm thick and the top is completely open.

@@ -1,0 +1,1 @@
+A pipe flange centred on the Z axis. A disc of 100 mm diameter and 10 mm thickness sits on Z=0. A concentric hub of 40 mm diameter rises from the disc to a total height of 30 mm. A 20 mm bore runs through everything along Z. Six 9 mm bolt holes pass through the disc, equally spaced on a 75 mm pitch circle, the first one on the +X axis.

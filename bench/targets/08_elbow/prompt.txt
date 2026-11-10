@@ -1,0 +1,1 @@
+A 90-degree pipe elbow with 20 mm outer diameter and 14 mm inner diameter. The centreline starts at the origin heading in +Z, bends through 90 degrees on a 40 mm radius in the XZ plane, and ends at (40, 0, 40) heading in +X.

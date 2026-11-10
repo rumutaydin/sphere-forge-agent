@@ -1,0 +1,1 @@
+A heat sink. The base plate is 60 mm by 60 mm and 5 mm thick, centred in X and Y on Z=0. Eight straight fins stand on it, each 2 mm thick in X, 60 mm long in Y and 20 mm tall (so the total height is 25 mm). The fin centres are 8 mm apart in X, from x=-28 to x=28.
