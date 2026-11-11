@@ -24,10 +24,16 @@ from .types import Task
 
 
 def make_agent(llm=None) -> Agent:
-    from .llm import OpenAICompatLLM
+    from .llm import LLM, OpenAICompatLLM
 
+    if llm is None:
+        try:
+            llm = OpenAICompatLLM()
+        except Exception as exc:  # no endpoint configured: every task gets its fallback box
+            print(f"WARNING: no model endpoint ({type(exc).__name__}: {exc}); writing fallback boxes only")
+            llm = LLM()
     return Agent(
-        llm or OpenAICompatLLM(),
+        llm,
         get_backend(os.environ.get("FORGE_BACKEND", "cadquery")),
         n_candidates=int(os.environ.get("FORGE_CANDIDATES", "3")),
         rounds=int(os.environ.get("FORGE_ROUNDS", "2")),

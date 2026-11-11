@@ -52,9 +52,21 @@ export OPENAI_BASE_URL=http://localhost:8000/v1 OPENAI_API_KEY=... OPENAI_MODEL=
 uv run python scripts/main.py --input_dir artifacts/inputs --output_dir artifacts/outputs
 ```
 
-`artifacts/inputs` is the organisers' practice set from their
-[submission template](https://github.com/sphere-energy/hackathon-submission).
-Without a reachable model the run still writes a bounding-box solid for every part.
+`artifacts/inputs` is the organisers' practice set. Without a reachable model the run
+still writes a bounding-box solid for every part.
+
+## Submitting
+
+This repo submits by itself; no second repo from the organisers' template is needed.
+**Every push to `main` is a submission**: CI builds the image, pushes it to the
+organisers' registry and uploads `artifacts/outputs/test_case_*.stp`
+(`.ci/push.sh`, taken unchanged from their
+[template](https://github.com/sphere-energy/hackathon-submission)).
+
+- Regenerate and commit all nine outputs in the same change as the code that made them.
+- A commit can be submitted once. To resubmit, push a new commit.
+- The leaderboard keeps our best commit.
+- The organisers' `*.env` credential files are ignored by git. Never commit them.
 
 ## Status
 
@@ -62,5 +74,5 @@ Without a reachable model the run still writes a bounding-box solid for every pa
   nine valid `.stp` files (fallback blocks) without a model. The Docker image builds and
   does the same as a non-root user (built on arm64; the `linux/amd64` build is untested).
 - **Not yet run with a real model, and nothing submitted.** No leaderboard score exists.
-- This repo is not yet merged into a repo created from the organisers' template;
-  that is Track A's first job.
+- `artifacts/outputs/` holds nine bounding-box solids: a valid first submission that
+  should score about 0.3.

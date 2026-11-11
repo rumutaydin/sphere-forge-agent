@@ -56,7 +56,7 @@ flowchart TB
 |---|---|---|---|
 | Question | Does our image run in 20 minutes, and what does the leaderboard say? | How do we know a part is right without the answer? | Can the model write it, and fix it? |
 | Number to move | leaderboard score; minutes per run | how well the self-score predicts the leaderboard | build rate; self-score per tier |
-| First job | team repo from the template, model served on Brev, first submission | silhouette comparison between their views and ours | run the base agent on the 9 practice parts, sort the failures |
+| First job | first submission from this repo, model served on Brev | silhouette comparison between their views and ours | run the base agent on the 9 practice parts, sort the failures |
 | Suits someone who likes | infrastructure, serving models, tooling | 3D vision, geometry | prompting, code generation |
 | Brief | [A-ship.md](tracks/A-ship.md) | [B-see.md](tracks/B-see.md) | [C-build.md](tracks/C-build.md) |
 
@@ -120,7 +120,7 @@ gitGraph
 1. **`main` always works**: tests green, `scripts/main.py` runs.
 2. **Short branches `<track>/<idea>`**, one idea each, pull request to merge, squash.
 3. **Stay in your track's files.** Shared files need everyone's approval.
-4. **Every merge to `main` in the team repo is a submission.** Track A decides when to
+4. **Every merge to `main` is a submission.** Track A decides when to
    merge. Outputs must be regenerated and committed with the code that made them.
 5. **Tag every eval** (`--tag c-fewshot`), and write the leaderboard value into that
    result file once it is known.
@@ -138,7 +138,7 @@ gantt
     Feature freeze, final outputs          :m3, 2026-11-13 02:00, 4h
     Handover file, slides                  :m4, 2026-11-13 06:00, 2h
     section Track A
-    Team repo, model on Brev, first submit :a1, 2026-11-11 18:00, 5h
+    First submit, model on Brev :a1, 2026-11-11 18:00, 5h
     Speed, model choice, submit loop       :a2, after a1, 20h
     Full dry run as the organisers run it  :a3, 2026-11-12 22:00, 8h
     section Track B

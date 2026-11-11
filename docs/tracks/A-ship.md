@@ -32,21 +32,19 @@ flowchart LR
 
 ## Backlog, in order
 
-1. **Create the team repo from the organisers' template** (private), add teammates, load
-   `<team>.vars.env` and `<team>.secrets.env` into GitHub Actions as the README says.
-   Then bring this code in: `forge/`, `scripts/main.py` (replaces theirs, same
-   interface), `tests/`, docs, and merge `pyproject.toml` (ours needs cadquery, trimesh,
-   scipy, pillow, openai). Keep their `Dockerfile`, `.ci/` and workflow.
-2. **Submit the floor first.** Run with no model: the pipeline writes a bounding-box
-   solid for all nine parts. Commit, merge, read the leaderboard. This proves the whole
-   path and tells us what a box really scores.
+1. **Check the submission path.** This repo carries the organisers' `.ci/push.sh`, the
+   `submit` CI job and the practice inputs, so a push to `main` submits. The repo
+   variables are set; the secrets must be loaded once by the owner
+   (`gh secret set -f team-g.secrets.env`). Watch the first `submit` job go green.
+2. **Submit the floor first.** `artifacts/outputs/` holds a bounding-box solid for all
+   nine parts. Merge it and read the leaderboard. This proves the whole path and tells
+   us what a box really scores.
 3. **Serve a model on Brev** with vLLM and open the port (README: "Hosting an LLM").
    It must accept images. Pick by measuring, not by reputation: run two or three
    candidates on the practice parts and compare self-score and time. Search terms below.
-4. **Docker image details.** CadQuery needs system libraries (`libgl1`, `libglu1-mesa`,
-   `libxrender1`) in the slim image. The container runs as non-root and may write only
-   to the output folder and `/tmp`; `run_all` already uses a temp folder. Test with the
-   exact `docker run --user` command from their README.
+4. **Docker image details.** Our `Dockerfile` installs the system libraries CadQuery
+   needs and has run as non-root on arm64. Still to check: the `linux/amd64` build that
+   CI pushes, with the exact `docker run --user` command from the organisers' README.
 5. **Fit in 20 minutes.** Measure where time goes. Levers: `FORGE_WORKERS`,
    `FORGE_CANDIDATES`, `FORGE_ROUNDS`, image resolution, `max_tokens`, vLLM batching.
    Spend more candidates on complex parts and fewer on simple ones.

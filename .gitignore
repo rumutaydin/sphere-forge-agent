@@ -7,3 +7,4 @@ __pycache__/
 !.env.example
 bench/cases/*/_build/
 *.pdf
+.DS_Store
