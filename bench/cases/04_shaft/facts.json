@@ -1,0 +1,18 @@
+{
+ "bounding_box_mm": {
+  "x": 30.0,
+  "y": 30.0,
+  "z": 90.0
+ },
+ "volume_mm3": 39897.2,
+ "surface_area_mm2": 7742.7,
+ "solids": 1,
+ "through_holes_genus": 0,
+ "faces": 9,
+ "face_types": {
+  "CYLINDER": 3,
+  "CONE": 2,
+  "PLANE": 4
+ },
+ "_note": "positions in mm from the bounding-box min corner, in the frame of the 8 views"
+}

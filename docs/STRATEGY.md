@@ -1,90 +1,130 @@
 # Strategy
 
-How three people win this in 39 hours without stepping on each other.
+Updated after the kickoff (Wed 11 Nov). Code freeze is **Friday 08:00**.
 
-## What winning takes
+## What changed at the kickoff
+
+| We assumed | It is |
+|---|---|
+| a vague prompt or one image | a detailed brief with exact mm dimensions, **plus** 8 orthographic views, **plus** `facts.json` with the target's measured bounding box, volume, area and hole inventory |
+| unknown metric, maybe pose-sensitive | 0.30 volume + 0.30 surface + 0.20 dimensions + 0.20 holes, after rigid alignment; pose is free, size and handedness are not |
+| unknown engine | any tool, as long as the output is one STEP solid in mm named `test_case_<n>.stp` |
+| unknown models | our own model behind an OpenAI-compatible endpoint, hosted on Brev (€250 credit) |
+| unknown limits | 20 minutes for all nine parts, one RTX PRO 6000 (96 GB) inside their container |
+| one final submission | live leaderboard during the event; best commit counts; final ranking on 9 hidden parts of the same kind |
+
+## What winning takes now
 
 ```mermaid
 flowchart LR
-    A["Valid part on every task<br/>(a crash scores zero)"] --> B["Right frame and proportions<br/>(largest share of the score)"]
-    B --> C["Right features<br/>(last few percent)"]
-    C --> D["Top 4 by similarity score"]
-    D --> E["Jury presentation<br/>decides the winner"]
+    A["A file for every part<br/>(missing = 0, a box = 0.3)"] --> B["Exact size<br/>(given in facts.json)"]
+    B --> C["Every through-hole<br/>(count given in facts.json)"]
+    C --> D["Right masses and surfaces<br/>(brief + 8 views)"]
+    D --> E["Top 4 on the hidden parts"]
+    E --> F["3 slides, 10 minutes, jury"]
 ```
 
-Work the chain left to right. Do not polish features while tasks still crash.
-The score only gets us into the final four; a clear story with numbers wins the jury.
+40% of the score (dimensions and holes) can be checked exactly against `facts.json`
+while the agent runs. Getting those right on every part comes before anything else.
 
-## Three tracks, three sets of files
-
-The problem splits along the question each person answers.
+## Three tracks
 
 ```mermaid
 flowchart TB
-    subgraph A["TRACK A - Measure: are we getting better?"]
-        A1["forge/metrics.py, geometry.py, render.py"]
-        A2["forge/bench.py, sensitivity.py, __main__.py, llm.py"]
-        A3["bench/, results/"]
+    subgraph A["TRACK A - Ship: does it run, and what is the real number?"]
+        A1["forge/run.py, llm.py, score.py, cases.py, __main__.py"]
+        A2["scripts/, bench/, results/, Dockerfile, CI"]
     end
-    subgraph B["TRACK B - Understand: what is being asked?"]
-        B1["forge/stages/understand.py"]
-        B2["forge/library/"]
+    subgraph B["TRACK B - See: checks without the answer"]
+        B1["forge/facts.py, render.py, geometry.py"]
+        B2["forge/stages/understand.py, forge/vision.py (new)"]
     end
-    subgraph C["TRACK C - Build: make it and make it right"]
+    subgraph C["TRACK C - Build: write the part, fix the part"]
         C1["forge/stages/build.py, verify.py, select.py"]
-        C2["forge/backends/"]
+        C2["forge/backends/, forge/library/"]
     end
     subgraph S["SHARED - change only with everyone's approval"]
         S1["forge/types.py, forge/pipeline.py"]
     end
-    B -- "Spec" --> C
-    C -- "part" --> A
-    A -- "scores and failure reports" --> B
-    A -- "scores and failure reports" --> C
+    B -- "plan, self-check, view comparison" --> C
+    C -- "STEP files" --> A
+    A -- "leaderboard numbers, failure cases" --> B
+    A -- "leaderboard numbers, failure cases" --> C
 ```
 
-| | Track A — Measure | Track B — Understand | Track C — Build |
+| | Track A — Ship | Track B — See | Track C — Build |
 |---|---|---|---|
-| Question | Is the number real, and is it going up? | What exactly is being asked? | Can we build it and catch our own mistakes? |
-| Number to move | eval matches the organisers' score; cases in the bench | image-input IoU; envelope error | build rate; text-input IoU |
-| First job at the briefing | reproduce their score locally | read their example tasks, sort them by type | port the CAD backend |
-| Suits someone who likes | data, plots, tooling | vision, prompting, mechanical parts | code generation, agent loops |
-| Brief | [A-measure.md](tracks/A-measure.md) | [B-understand.md](tracks/B-understand.md) | [C-build.md](tracks/C-build.md) |
+| Question | Does our image run in 20 minutes, and what does the leaderboard say? | How do we know a part is right without the answer? | Can the model write it, and fix it? |
+| Number to move | leaderboard score; minutes per run | how well the self-score predicts the leaderboard | build rate; self-score per tier |
+| First job | first submission from this repo, model served on Brev | silhouette comparison between their views and ours | run the base agent on the 9 practice parts, sort the failures |
+| Suits someone who likes | infrastructure, serving models, tooling | 3D vision, geometry | prompting, code generation |
+| Brief | [A-ship.md](tracks/A-ship.md) | [B-see.md](tracks/B-see.md) | [C-build.md](tracks/C-build.md) |
 
-Why this split holds up: B and C meet only at `Spec`, and C and A meet only at the
-exported part. Each track can be tested alone. B can be judged by reading `spec.md`
-against the target. C can be handed a hand-written perfect brief. A needs neither.
+### Why the old "Understand" track became "See"
+
+The old Track B existed to turn a vague prompt into exact numbers. The organisers now
+hand us the exact numbers, so that job is gone. Two real problems remain on the input
+side, and both are about the views:
+
+- **The brief is incomplete on complex parts.** Case 5 says "three shallow
+  rounded-rectangular pockets" with no dimensions. Case 7 has 628 faces, 222 of them
+  free-form; no brief can list them. The missing shape is only in the pictures.
+- **Volume and area cannot prove the shape is right.** The views can: render our part
+  with the same eight cameras and compare outlines.
+
+## Decision: no trained network
+
+A teammate proposed training a network: frozen VGGT image features, a transformer
+decoder with learned queries, output N primitives of 12 numbers each (rotation,
+translation, scale, shape exponents, existence), supervised by superquadrics fitted to
+each object. It is a sound research design. For this competition we should not build it.
+
+| Issue | Why it hurts here |
+|---|---|
+| Superquadrics are convex blobs with no holes | holes are 20% of the score, and 6 of the 9 practice parts have between 1 and 15 |
+| A set of blobs is a coarse shape | the organisers' own number for a convex shrink-wrap is 0.51; surface match is checked down to 0.5% of part size |
+| It reads only the images | the brief and `facts.json` give sizes to 0.01 mm; 2% size error already costs points |
+| It needs data we do not have | thousands of mechanical parts rendered in this style with fitted primitives; today it overfits 24 objects with one layer |
+| Time | under 40 hours, of which the network would need most for data and training before producing a first score |
+| Still not a STEP solid | the blobs must be converted into one valid B-rep solid |
+
+Run-time limits are not the problem; VGGT fits on the provided GPU.
+
+**What to do with that expertise instead:** the useful part of the idea is "get coarse
+3D shape from the views". With eight clean orthographic views and known cameras that
+needs no training: carve a visual hull from the silhouettes. It has the exact size, it
+keeps through-holes that are visible along a view axis, and it works on parts no
+dataset contains. That is Track B's main line; see [B-see.md](tracks/B-see.md).
+
+If the team still wants to try the network, cap it: one person, six hours, and it must
+beat the visual hull on the leaderboard to continue.
 
 ## How we work in the repo
 
 ```mermaid
 gitGraph
-    commit id: "base"
-    branch a/more-cases
-    commit id: "add 30 cases"
-    checkout main
+    commit id: "kickoff rules"
     branch c/fewshot
     commit id: "few-shot examples"
-    commit id: "eval +0.04"
+    commit id: "self-score +0.04"
     checkout main
-    merge a/more-cases
+    branch b/silhouettes
+    commit id: "silhouette IoU"
+    checkout main
     merge c/fewshot
-    branch b/image-views
-    commit id: "view reasoning"
-    checkout main
-    merge b/image-views
+    commit id: "submit: leaderboard"
+    merge b/silhouettes
+    commit id: "submit again"
 ```
 
-1. **`main` always works.** Tests green, `forge eval` runs.
-2. **Short branches named `<track>/<idea>`**, for example `c/fewshot`. One idea each.
-3. **Pull request to merge.** Squash. The description states the score before and after.
-4. **Stay in your track's files.** Then merges never conflict. Need something in another
-   track's file? Ask its owner or open a small separate PR for it.
-5. **Shared files** (`forge/types.py`, `forge/pipeline.py`) need all three to approve.
-6. **Every eval run is tagged** (`--tag c-fewshot`) so it lands in `results/` as its own
-   file. Nobody edits a shared results table by hand.
-7. **A change that does not move the score does not merge**, however clever. Park it on
-   its branch and write one line in your track brief about why it failed.
+1. **`main` always works**: tests green, `scripts/main.py` runs.
+2. **Short branches `<track>/<idea>`**, one idea each, pull request to merge, squash.
+3. **Stay in your track's files.** Shared files need everyone's approval.
+4. **Every merge to `main` is a submission.** Track A decides when to
+   merge. Outputs must be regenerated and committed with the code that made them.
+5. **Tag every eval** (`--tag c-fewshot`), and write the leaderboard value into that
+   result file once it is known.
+6. **A change that does not move a number does not merge.**
 
 ## Timeline
 
@@ -93,96 +133,45 @@ gantt
     dateFormat  YYYY-MM-DD HH:mm
     axisFormat  %a %H:%M
     section All
-    Briefing, ask the questions below      :m1, 2026-11-11 15:00, 2h
-    Sync, full eval, re-plan               :m2, 2026-11-12 12:00, 1h
-    Feature freeze, final full run         :m3, 2026-11-13 02:00, 4h
-    Slides and demo                        :m4, 2026-11-13 06:00, 2h
+    Sync and re-plan on leaderboard        :m1, 2026-11-12 09:00, 1h
+    Sync and re-plan                       :m2, 2026-11-12 18:00, 1h
+    Feature freeze, final outputs          :m3, 2026-11-13 02:00, 4h
+    Handover file, slides                  :m4, 2026-11-13 06:00, 2h
     section Track A
-    Match their metric, real baseline      :a1, 2026-11-11 17:00, 3h
-    Grow bench, failure reports            :a2, after a1, 16h
-    Submission tooling, final numbers      :a3, 2026-11-12 13:00, 13h
+    First submit, model on Brev :a1, 2026-11-11 18:00, 5h
+    Speed, model choice, submit loop       :a2, after a1, 20h
+    Full dry run as the organisers run it  :a3, 2026-11-12 22:00, 8h
     section Track B
-    Sort their example tasks by type       :b1, 2026-11-11 17:00, 3h
-    Structured brief, image reading        :b2, after b1, 16h
-    Worst image cases, library parts       :b3, 2026-11-12 13:00, 13h
+    Silhouette comparison                  :b1, 2026-11-11 18:00, 6h
+    Visual hull, better fallback           :b2, after b1, 12h
+    Self-score vs leaderboard              :b3, 2026-11-12 14:00, 12h
     section Track C
-    Port the CAD backend                   :c1, 2026-11-11 17:00, 3h
-    Build rate to 100%, critic quality     :c2, after c1, 16h
-    Worst text cases, selection            :c3, 2026-11-12 13:00, 13h
+    Base agent on practice parts           :c1, 2026-11-11 18:00, 5h
+    Build rate, holes, exact sizes         :c2, after c1, 14h
+    Complex tier                           :c3, 2026-11-12 14:00, 12h
 ```
 
-Every four hours, ten minutes together: each person says their number, what moved it,
-and what is blocking them. Sleep in shifts; a tired person breaks `main`.
+## Still open: ask the organisers
 
-## Questions to ask at the briefing
+1. **Where are the practice answers and the scorer?** The slides say the practice parts
+   are "released with the answers" and the scorer is "shipped with the practice set".
+   The template repo has neither: `example_outputs/` is three copies of an unrelated file.
+2. **Will `facts.json` exist for the hidden parts?** The README says the hidden set is
+   "in exactly this format", but the template's own loader does not read it. Our design
+   leans on it, so confirm.
+3. **20 minutes or one hour?** The slide says 1 h for nine parts, the README says 20
+   minutes. We plan for 20.
+4. **May the endpoint be a hosted commercial model**, or must it be one we serve on Brev?
+5. **How strictly must a re-run reproduce our submitted outputs?** Model sampling is not
+   fully repeatable. The README says a mismatch is "reviewed by hand".
+6. **Does the container have internet access** during the hidden run, beyond our endpoint?
 
-1. Which similarity metric exactly, and is the part aligned or normalised before scoring?
-2. Which output format: STEP, STL, the program, something else?
-3. Which CAD engine or language, and may we use a different one if the output format matches?
-4. How many hidden targets, and how are they split between text and image input?
-5. For image input: one view or several, render or photo or drawing, are dimensions shown?
-6. Is there a public validation set with targets we can score against ourselves?
-7. How many submissions are allowed, and do we see our score after each?
-8. What does a failed or invalid part score?
-9. Is there a time or cost limit per task? Is the run live or do we upload results?
-10. Are there multi-step tasks (build a part, then edit it)?
-11. Which models and compute are provided, and may we bring our own API keys?
-12. Are internet access and pretrained third-party models allowed?
+## Settled questions
 
-## Decisions already taken, and why
-
-### Do we need prompt enhancement?
-
-Yes, and it is Track B's core job, with one caveat. We cannot add information the prompt
-does not contain; the target is hidden. What we can do is make the model's guesses
-explicit, consistent and conventional. That is what the brief does. Expect the largest
-gain on short prompts and on image input, and almost none on prompts that already list
-every dimension.
-
-### B-rep or a visual representation?
-
-Both, in different roles. We never choose between them.
-
-```mermaid
-flowchart LR
-    P["Program<br/>(what the model writes)"] --> K["CAD kernel"] --> B["B-rep solid<br/>exact faces and edges<br/>saved as STEP"]
-    B --> T["Triangle mesh (STL)"] --> V["Voxels / points<br/>(what gets scored)"]
-    T --> R["Renders<br/>(what the critic sees)"]
-```
-
-- **B-rep** (boundary representation) is the exact description CAD systems use. A model
-  cannot write one directly; the format is too long and too fragile. Research systems
-  that generate B-rep directly are trained networks, which we cannot build in 39 hours.
-- So the model writes a **program**, and the kernel turns it into B-rep for free. Our
-  output is already industry-standard STEP.
-- **Meshes, voxels and images** are how the result is scored and inspected. They are
-  derived from the B-rep and never edited by hand.
-
-### Do we need a knowledge base?
-
-A small one. `forge/library/` holds tested generators for shapes defined by a standard:
-gears now; threads, fastener heads and standard profiles are candidates. The model
-calls them by name. Add a part only when a real task needs it.
-
-### What about involute gears?
-
-Expect one or two; they are the classic hard case. Two facts keep this cheap:
-
-- The exact tooth curve barely affects an overlap score. A gear with straight-sided teeth
-  and a true involute gear overlap almost completely. What moves the score is **tooth
-  count, outer diameter, face width and bore**.
-- The curve is solved once in `spur_gear()`. The remaining problem is reading those four
-  numbers from the task.
-
-From an image, the hard number is the tooth count; models count badly. Track B has this
-as an open problem (crop and zoom, count along the rim, cross-check with pitch).
-
-### What if they test iterative editing?
-
-Ask at the briefing (question 10) and do not build it before then.
-
-Our design already favours it: the state of a part is its **program**, and editing a
-program is far easier than editing a mesh. `Task.base_code` is reserved for this. If the
-edit builds on a part we generated, we still have its program. The hard variant is
-being handed a foreign mesh or STEP file with no program; that needs reverse
-engineering and would be a new work item for Track C.
+| Question | Answer |
+|---|---|
+| Prompt enhancement? | Not needed: the brief is already precise. The plan stage now orders the build and lists what must be read from the views. |
+| B-rep or a visual representation? | Output is B-rep (STEP), produced by running a program. Meshes and images are derived from it for checking. |
+| Knowledge base? | Minor. `forge/library/` stays for standard shapes; add a helper only when a failing part needs it. |
+| Iterative edit tasks? | Not part of this competition. |
+| Which CAD engine? | Free choice. CadQuery stays unless a measured comparison beats it. |

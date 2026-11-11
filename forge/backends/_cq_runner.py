@@ -1,7 +1,7 @@
 """Runs one generated CadQuery program in its own process.
 
 usage: python _cq_runner.py <code.py> <out_dir>
-Writes part.step, part.stl and measure.json into out_dir. Exit code 0 on success;
+Writes part.step and measure.json into out_dir. Exit code 0 on success;
 on failure the traceback goes to stderr.
 """
 import json
@@ -87,8 +87,9 @@ def main() -> int:
         if info["solids"] == 0 or info["volume"] <= 1e-6 * bbox_volume:
             raise RuntimeError("result has no solid volume (did you forget to extrude/close a sketch?)")
         cq.exporters.export(shape, str(out_dir / "part.step"))
-        diag = sum(s * s for s in info["bbox_size"]) ** 0.5
-        cq.exporters.export(shape, str(out_dir / "part.stl"), tolerance=diag * 5e-4, angularTolerance=0.2)
+        from forge.geometry import genus, shape_to_mesh
+
+        info["genus"] = genus(shape_to_mesh(shape))  # through-hole count, as the scorer counts it
         (out_dir / "measure.json").write_text(json.dumps(info))
         return 0
     except Exception:

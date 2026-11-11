@@ -1,103 +1,103 @@
 # Track C — Build
 
-**In plain words:** given a clear brief, you produce a part that always builds, and you
-make the agent catch its own mistakes before we submit. You also own the connection to
-the CAD engine, which is the piece most likely to change at the briefing.
+**In plain words:** you make the model write a program that builds the part, and fix it
+when the checks say it is wrong. The brief gives exact numbers and Track B gives exact
+checks, so your work is turning those into geometry that builds every time: first the
+right size and every through-hole, then the masses, then detail.
 
 ```mermaid
 flowchart LR
-    SP["Spec"] --> G["generate x N"]
+    PL["plan"] --> G["generate x N"]
     G --> R{"builds?"}
     R -- "no: traceback" --> FX["repair"] --> R
-    R -- "yes" --> V{"critic:<br/>matches task?"}
-    V -- "no: corrected program" --> R
-    V -- "yes" --> S["select by consensus"]
-    S --> OUT["final part"]
+    R -- "yes" --> K["self-check vs facts"]
+    K --> V{"critic"}
+    V -- "corrected program" --> R
+    V -- "approved" --> S["select: best self-score"]
+    S --> OUT["test_case_n.stp"]
 ```
 
 ## You own
 
-`forge/stages/build.py` `forge/stages/verify.py` `forge/stages/select.py` `forge/backends/`
+`forge/stages/build.py` `forge/stages/verify.py` `forge/stages/select.py`
+`forge/backends/` `forge/library/`
 
 ## Numbers you move
 
 | Number | How to read it | Now | Target |
 |---|---|---|---|
-| Build rate | share of cases with a usable part | unmeasured | 100% |
-| Text-input IoU | `forge eval` | unmeasured | above 0.90 on our bench |
-| Critic gain | final IoU minus first-runnable IoU (Track A backlog item 2) | unmeasured | positive on average, never negative by more than 0.02 |
-| Selection regret | best candidate in hindsight minus chosen | unmeasured | under 0.02 |
-| Cost per task | model calls and seconds | unmeasured | fits the organisers' limit |
+| Build rate | parts where the agent, not the fallback, produced the file | unmeasured | 9 of 9 |
+| Dimension score | `self_check.dimensions`, exact | unmeasured | 1.00 on every part |
+| Hole score | `self_check.holes`, exact | unmeasured | 1.00 on every part |
+| Self-score by tier | simple / medium / complex means | unmeasured | simple ≥ 0.95, medium ≥ 0.85, complex ≥ 0.70 |
+| Critic gain | self-score after critique minus before | unmeasured | positive on average |
 
-To test your stages alone: hand-write a perfect brief for a case and feed it in. If the
-part is still wrong, the fault is yours and not Track B's.
+To test your stages alone: write the plan by hand for one part and feed it in.
 
 ## Backlog, in order
 
-1. **Port the backend** (first hours after the briefing, if the engine is not CadQuery).
-   Subclass `CadBackend`: write the `guide`, write a runner that executes a program in a
-   subprocess with a timeout and writes STEP, STL and `measure.json` with the same keys
-   as `_cq_runner.py`. Register it in `forge/backends/__init__.py`. The tests in
-   `tests/test_offline.py` show what must keep working.
-2. **Build rate first.** Collect every traceback from an eval run, group them, and
-   attack the largest group. Usual suspects: fillet or chamfer radius too large, face
-   selectors that match nothing after an earlier operation, sweeps whose path does not
-   start at the profile, lofts between incompatible sections, shells on filleted bodies.
-   Fix each by a line in the guide, a worked example, or a fallback rule.
-3. **Graceful degradation.** If repair is exhausted, strip the failing feature and keep
-   the body. A part without its fillets scores about the same; a missing part scores zero.
-   As a last resort return a box of the brief's envelope: that alone is worth ~0.4.
-4. **Few-shot examples.** Add three to five short, correct programs to the generator
-   prompt, covering revolve, sweep, loft, shell and polar patterns. Try static examples
-   first, then retrieval of the most similar ones. Borrow only from cases Track A marks
-   as not held out.
-5. **A critic that disagrees.** The author model reviewing its own code tends to approve.
-   Try: a different model as critic; a critic that never sees the program, only the task,
-   measurements and renders; a checklist it must fill with numbers before it may approve.
-6. **Numeric checks without a model.** Once Track B emits a structured brief, compare
-   `measure.json` against it in plain Python: envelope within tolerance, hole count and
-   radii from the cylinder list, volume plausible. Feed only the failed checks to the
-   critic. Cheap, deterministic, and it never approves a wrong bounding box.
-7. **Better views.** Show the input image next to the render for image tasks. Add a
-   section view for parts with internal features. Let the critic ask for a zoomed view.
-8. **Diversity before voting.** Three samples of one prompt are near copies. Vary the
-   construction strategy (extrude-and-cut vs revolve vs union of primitives), vary
-   Track B's flagged guesses, or vary the model. Consensus only means something when the
-   voters are independent.
-9. **Selection.** Compare the medoid against: critic score, numeric-check pass count,
-   agreement with a pseudo-target if Track B builds one. Measure by selection regret.
-10. **Parameter fitting (speculative).** When the structure is right and the numbers are
-    off, expose the dimensions as variables and fit them with a derivative-free optimiser
-    against whatever target signal we have (input-image silhouette, pseudo-target mesh).
-11. **Edit tasks** (only if the organisers confirm them). `Task.base_code` carries the
-    existing program; add a stage that modifies it and checks that untouched features
-    stay put by comparing against the previous part outside the edited region.
+1. **Run the base agent on the nine practice parts** and sort the outcomes: crashed,
+   wrong size, wrong hole count, wrong shape. Everything below is ordered by a guess;
+   reorder it by what you see.
+2. **Exact envelope, always.** The bounding box is given. After building, if an extent
+   is off by a hair, find the feature that sets it. Never rescale the finished part to
+   fit: that distorts every hole.
+3. **Hole count is a hard target.** `through_holes_genus` is the exact number the scorer
+   counts. Typical ways to get it wrong: a blind hole drilled too deep becomes a through
+   hole; two crossing bores merge; a hole that misses the body does nothing. Make the
+   repair prompt name the difference ("built 5, target 6") and list the facts' hole
+   inventory (diameter, axis, centre) so the model can find the missing one.
+4. **Use the hole inventory directly.** `cylindrical_holes_and_bores` gives diameter,
+   axis, length and centres. Generate those cuts from the data in plain Python and hand
+   the model a part that already has its listed holes; let it spend its effort on the
+   body. Mind `more_not_listed` and tilted axes given as vectors.
+5. **Build rate.** Group tracebacks from a run and remove the largest group with a line
+   in the guide, a worked example or a fallback rule. Usual suspects: fillet radius too
+   large, selectors that match nothing, sweeps and lofts, shells on filleted bodies.
+6. **Degrade, do not fail.** If repair runs out, drop the failing feature and keep the
+   body. Fillets and chamfers go first: the simple and medium parts carry dozens of
+   torus and cone faces that are worth almost nothing in volume.
+7. **Part-type recipes.** The practice set is engine parts, and so is the hidden set.
+   Give the generator short worked examples for the recurring kinds: revolved parts
+   (valve, bushing: sketch the half profile, revolve), prismatic blocks with hole
+   patterns (cylinder head), shafts with offset journals (crankshaft), bores on tilted
+   axes (V-block: build the tool cylinder along Z, rotate, translate, cut), radial fin
+   patterns. Do not copy the practice parts' numbers.
+8. **Critic that uses Track B's instruments.** Feed it the per-view silhouette scores
+   and the difference sheet once they exist. Try a critic that never sees the program.
+9. **Budget by tier.** `faces` in the facts gives the tier. One candidate and no critic
+   may be enough for a 12-face part; spend the saved minutes on the 600-face one.
+10. **Candidate diversity.** Vary the construction strategy across candidates (revolve
+    vs extrude-and-cut vs union of blocks) so that selection has real alternatives.
+11. **Parameter fitting (speculative).** When the structure is right and volume is off
+    by a few percent, expose the unspecified dimensions as variables and search them
+    against the self-score.
+12. **build123d backend (optional).** Same kernel, different API. Worth an hour only if
+    CadQuery's failure groups look API-specific.
 
 ## Search terms
 
-LLM program synthesis, CAD code generation, CadQuery, build123d, OpenSCAD, FreeCAD
-Python API, constructive solid geometry, feature-based / history-based modelling,
-sketch-and-extrude, execution-guided generation, self-repair, self-debugging,
-reflexion, visual feedback loop, critic / judge model, self-confirmation bias,
-LLM-as-judge, self-consistency, best-of-N sampling, minimum Bayes risk decoding,
-medoid selection, analysis-by-synthesis, inverse CAD, derivative-free optimisation
-(CMA-ES, Nelder–Mead), few-shot exemplar retrieval, RAG over API documentation,
-tool-use agent loop, OpenCASCADE BRepCheck, sewing, shape healing.
+CadQuery revolve / sweep / loft / shell, CadQuery polarArray and rarray, cut along
+arbitrary axis, Workplane transformed rotate offset, counterbore and countersink
+(cboreHole, cskHole), OpenCASCADE fillet failure, BRepCheck, shape healing, LLM program
+synthesis for CAD, execution-guided generation, self-repair, critic model,
+self-confirmation bias, best-of-N with a verifier, few-shot exemplar retrieval,
+feature-based modelling, design intent, constructive solid geometry, derivative-free
+optimisation (Nelder–Mead, CMA-ES), build123d.
 
-Papers: CADSmith (closest to our design; read its validator section), CADCodeVerify,
-3D-PreMise, Text-to-CadQuery, CAD-Recode, "From Idea to CAD" multi-agent, CADTests,
-BenchCAD Code Edit task.
+Papers: CADSmith (numeric validator section), CADCodeVerify, ToolCAD (engine text
+feedback beats visual feedback on multi-part models), Text2CAD-Bench (why sweep, loft
+and shell crash).
 
 ## Traps
 
-- A critic round that makes a good part worse. Always keep the previous version and
-  measure critic gain per round; if round two is negative on average, cut it.
-- Spending the budget on fillets and chamfers. Check the floors table: edge treatments
-  are worth a percent or two.
-- Selectors like `faces(">Z")` in generated code. They are the top source of silent
-  wrong-face bugs; prefer explicit coordinates and boolean cuts.
-- Prompt changes verified on two cases. Run at least the smoke subset.
+- Mirroring. The scorer does not mirror; a left-handed part scores like a different part.
+  Check asymmetric features against the views.
+- A critic round that lowers the self-score. `verify.py` reverts those; keep it that way.
+- Spending the time budget on edge treatments while a hole is missing.
+- Tuning prompts to the nine practice parts. The hidden parts are different parts of the
+  same kind.
 
 ## Lab notes
 
-Append one line per experiment: date, idea, score before → after, kept or dropped.
+Append one line per experiment: date, idea, number before → after, kept or dropped.

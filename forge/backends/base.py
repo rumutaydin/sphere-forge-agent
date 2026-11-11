@@ -1,7 +1,7 @@
 """The seam between the agent and whatever CAD engine the hackathon provides.
 
 To support a new engine, subclass CadBackend: describe the language to the
-model in `guide`, and turn a program into a STEP/STL file in `execute`.
+model in `guide`, and turn a program into a STEP file in `execute`.
 Nothing else in the codebase knows which engine is in use.
 """
 from __future__ import annotations
@@ -14,8 +14,7 @@ from pathlib import Path
 class ExecResult:
     ok: bool
     error: str = ""                 # traceback tail or validity problem, fed back to the model
-    step_path: Path | None = None
-    stl_path: Path | None = None
+    step_path: Path | None = None   # the only output format: one STEP solid, in mm
     measure: dict = field(default_factory=dict)  # kernel measurements, see describe()
 
 
@@ -27,13 +26,18 @@ class CadBackend:
     def execute(self, code: str, out_dir: Path, timeout: float = 90) -> ExecResult:
         raise NotImplementedError
 
+    def box_code(self, x: float, y: float, z: float) -> str:
+        """Program for a plain x * y * z block: the fallback when nothing else builds."""
+        raise NotImplementedError
+
 
 def describe(measure: dict) -> str:
     """Kernel measurements as text. Numbers are the feedback models use best."""
     if not measure:
         return "(no measurements)"
     lines = [
-        f"valid solid: {measure.get('valid')}   solids: {measure.get('solids')}",
+        f"valid solid: {measure.get('valid')}   solids: {measure.get('solids')}   "
+        f"through-holes (genus): {measure.get('genus')}",
         "bbox min  ({:.3f}, {:.3f}, {:.3f})".format(*measure["bbox_min"]),
         "bbox max  ({:.3f}, {:.3f}, {:.3f})".format(*measure["bbox_max"]),
         "bbox size ({:.3f}, {:.3f}, {:.3f})".format(*measure["bbox_size"]),

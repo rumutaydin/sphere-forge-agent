@@ -1,99 +1,85 @@
 # Research map
 
-Where the open problems are, and the vocabulary to search them with.
+Open problems after the kickoff, and the vocabulary to search them with. Questions the
+kickoff answered are gone; the ones for the organisers are in
+[STRATEGY.md](STRATEGY.md#still-open-ask-the-organisers).
 
 ## Map
 
 ```mermaid
 mindmap
-  root((Prompt to CAD))
-    Measure
-      Which alignment do they use
-      Benchmark that predicts their score
-      Run-to-run noise
-      Thin walls under IoU
-    Understand
-      Vague prompt to explicit brief
-      Default coordinate frame
-      Image to dimensions
-        Scale ambiguity
-        Counting repeated features
-        Multi-view reconciliation
-      Standard parts library
-      Pseudo-target from image-to-3D
+  root((Brief + views to STEP))
+    Ship
+      Which open model writes CAD code best
+      Nine parts in twenty minutes
+      Reproducible re-run
+      Local scorer vs leaderboard
+    See
+      Silhouette comparison
+      Their view framing
+      Visual hull
+        Pseudo-target
+        Fallback solid
+      Holes from views
+      Self-score calibration
     Build
-      Build rate on sweep loft shell
-      Few-shot examples
-      Independent critic
-      Numeric checks from the brief
-      Candidate diversity
-      Selection without ground truth
-      Parameter fitting
-    Unknown until briefing
-      CAD engine
-      Models and compute
-      Edit tasks
-      Submission limits
+      Exact envelope
+      Exact through-hole count
+      Holes straight from facts
+      Build rate
+      Part-type recipes
+      Complex free-form parts
 ```
 
 ## Open questions, ranked by expected payoff
 
 | # | Question | Track | Why it matters | Status |
 |---|---|---|---|---|
-| 1 | Which alignment and metric do the organisers use? | A | decides whether frame errors cost 0.8 or nothing | ask at briefing |
-| 2 | What is our real baseline? | A | no experiment means anything without it | not run |
-| 3 | Which default frame matches targets when the prompt is silent? | B | wrong up axis scores 0.16 under absolute comparison | open |
-| 4 | What makes programs crash, by category? | C | a crash is a zero | open |
-| 5 | How do we get proportions out of an image? | B | image input is where general models are weakest (~0.40 published) | open |
-| 6 | Does the critic help or hurt per round? | C + A | published gain is about +0.15, ours is unmeasured | needs per-stage eval |
-| 7 | Does consensus pick the best candidate? | C + A | free points if selection regret is large | needs per-stage eval |
-| 8 | Can an image-to-3D mesh serve as a test-time target? | B + C | would give us a score to climb during inference | speculative |
-| 9 | Do few-shot examples raise build rate on hard operations? | C | published crash rates reach 70–90% on sweep and loft | open |
-| 10 | How noisy is one eval run? | A | sets the smallest improvement worth merging | open |
+| 1 | What does the base agent score on the leaderboard? | A | nothing else is measurable before this | not submitted |
+| 2 | Which servable model is best at this, within 20 minutes? | A | the model is the largest single lever | open |
+| 3 | Can we hit dimensions and hole count exactly on every part? | C | 40% of the score, and we are told the answers | open |
+| 4 | Does silhouette comparison catch wrong shapes that volume and area miss? | B | 60% of the score has no exact check yet | not built |
+| 5 | How good is a visual-hull solid as a fallback? | B | lifts the floor on parts the agent cannot model | not built |
+| 6 | How well does the self-score predict the leaderboard? | B + A | selection and the critic both rely on it | needs submissions |
+| 7 | How far can a program get on parts with 300–600 faces? | C | a third of the score is the complex tier | open |
+| 8 | Do generated holes from the facts inventory beat model-written holes? | C | removes the most common counting mistake | open |
+| 9 | How repeatable is one run? | A | the organisers compare a re-run with our submission | open |
 
 ## Glossary
 
 | Term | Meaning |
 |---|---|
-| B-rep | Boundary representation. A solid stored as exact faces, edges and vertices. What CAD systems and STEP files use. |
-| STEP | The standard exchange file for B-rep solids. |
-| CAD kernel | The geometry engine that computes solids. OpenCASCADE is the open-source one under CadQuery, build123d and FreeCAD. |
-| CSG | Constructive solid geometry: building shapes by union, cut and intersection of simpler ones. |
-| Feature history | The ordered list of operations (sketch, extrude, fillet…) that produces a part. Our programs are feature histories. |
-| Sketch-and-extrude | Draw a 2D profile, push it into 3D. The bread and butter of mechanical CAD. |
-| Revolve / sweep / loft / shell | Spin a profile about an axis / drag it along a path / blend between profiles / hollow a solid. The operations models fail at most. |
-| Tessellation | Approximating a B-rep by triangles. Needed for rendering and scoring. |
-| Voxel | A small cube in a 3D grid. A voxelised part is the set of cubes inside it. |
-| IoU | Intersection over union: shared volume divided by combined volume. 1 is identical, 0 is disjoint. |
-| Chamfer distance | Average distance from points on one surface to the nearest point on the other, both ways. Lower is better. |
-| F-score / F1 | Share of surface points within a tolerance of the other surface, combining both directions. |
-| Hausdorff distance | The worst-case surface distance. Sensitive to a single stray feature. |
-| ICP | Iterative closest point: nudging one shape onto another to best align them. |
-| Canonical pose | An agreed position and orientation so two shapes can be compared fairly. |
+| B-rep | Boundary representation: a solid stored as exact faces, edges and vertices. What STEP files hold. |
+| STEP (.stp) | The standard exchange file for B-rep solids. The only format we may submit. |
+| CAD kernel | The geometry engine that computes solids. OpenCASCADE sits under CadQuery and build123d. |
+| Through-hole / genus | A hole that passes fully through. The genus of a solid is how many it has (a mug handle counts as one). |
+| Blind hole | A hole with a bottom. Does not count as a through-hole. |
 | Envelope | The bounding box of the part. |
-| Medoid | The member of a group closest on average to all the others. Our selection rule. |
-| Self-consistency | Sampling several answers and trusting what they agree on. |
-| Critic / judge | A model call that reviews an output instead of producing one. |
-| Few-shot | Showing the model worked examples in the prompt. |
-| RAG | Retrieval-augmented generation: fetching relevant documents or examples into the prompt. |
-| Involute | The tooth curve of standard gears. Defined by a formula from module, tooth count and pressure angle. |
-| Module | Gear tooth size: pitch diameter divided by tooth count. |
-| Pseudo-target | A rough stand-in for the hidden target, built at test time, to score candidates against. |
-| Build rate | Share of tasks where we produce a valid solid. Its complement is the invalidity rate. |
+| Revolve / sweep / loft / shell | Spin a profile about an axis / drag it along a path / blend between profiles / hollow a solid. |
+| Fillet / chamfer | A rounded / bevelled edge. Many faces, little volume. |
+| Tessellation | Approximating a B-rep by triangles, for rendering and scoring. |
+| Volumetric IoU | Shared volume divided by combined volume. |
+| F-score | Share of surface points within a tolerance of the other surface, both directions combined. |
+| Rigid alignment | Moving and rotating one shape onto another without scaling or mirroring. |
+| ICP | Iterative closest point: a method that refines a rigid alignment. |
+| Handedness | Whether a part is the left- or right-handed version. A mirror image is a different part. |
+| Orthographic view | A view with no perspective: parallel lines stay parallel, sizes can be measured. |
+| Silhouette | The outline of the part in a view, as a filled mask. |
+| Visual hull | The largest shape consistent with all silhouettes; found by carving a block. |
+| Pseudo-target | A stand-in for the hidden target, built from the inputs, to score candidates against. |
+| Self-score | Our estimate of the score from `facts.json` and the views, without the answer. |
+| Superquadric | A family of smooth convex primitives (box-like to ball-like) used to approximate shapes. |
+| vLLM | A server that hosts open models behind an OpenAI-compatible interface. |
+| Medoid | The member of a group closest on average to the others. Our selection rule when facts are missing. |
 
 ## Reading list
 
-Start with the first two; they are closest to what we are building.
-
-| Paper | Read it for |
+| Source | Read it for |
 |---|---|
-| [CADSmith](https://arxiv.org/html/2603.26512v1) | planner + coder + numeric validator + judge loop; the ablation table |
-| [CADCodeVerify](https://arxiv.org/html/2410.05340v2) | visual question-answer feedback on renders |
-| [BenchCAD](https://arxiv.org/html/2605.10865v1) | image-to-CAD failure modes; 106 industrial part families |
-| [Text2CAD-Bench](https://arxiv.org/html/2605.18430v1) | prompt styles, difficulty tiers, why build failures dominate |
-| [CADTests](https://arxiv.org/html/2605.07807v1) | why a single distance metric is a weak judge |
-| [cadrille](https://arxiv.org/pdf/2505.22914) | multi-modal input (image, text, points) to CadQuery |
-| [CAD-Recode](https://arxiv.org/pdf/2412.14042) | CAD-as-Python-code as the output representation |
-| [GIFT](https://arxiv.org/pdf/2603.27448) | using geometric feedback to improve image-to-CAD |
-| [Text-to-CadQuery](https://arxiv.org/pdf/2505.06507) | a large set of prompt and CadQuery pairs |
-| [Clarify Before You Draw](https://arxiv.org/pdf/2602.03045) | handling under-specified prompts |
+| [CADSmith](https://arxiv.org/html/2603.26512v1) | numeric validation against kernel measurements; closest to our loop |
+| [CADCodeVerify](https://arxiv.org/html/2410.05340v2) | question-and-answer feedback on renders |
+| [ToolCAD](https://arxiv.org/abs/2604.07960) | engine text feedback vs visual feedback; step-level feedback |
+| [BenchCAD](https://arxiv.org/html/2605.10865v1) | multi-view image to CadQuery; failure modes |
+| [Text2CAD-Bench](https://arxiv.org/html/2605.18430v1) | why sweep, loft and shell fail to build |
+| [text-to-cad plugin](https://github.com/earthtojake/text-to-cad) | build123d modelling guide; asserts inside the model |
+| [CadQuery docs](https://cadquery.readthedocs.io/) | the API the model writes |

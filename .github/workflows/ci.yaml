@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # Tests run inside our own image: that also proves the image builds, and avoids
+    # installing CAD system libraries on the runner.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -t forge-ci .
+      - run: docker run --rm forge-ci uv run pytest -q
+
+  submit:
+    # Every push to main is a submission: image to the organisers' registry, outputs to their bucket.
+    # Skipped until the organisers' variables and secrets are set on the repo.
+    if: github.event_name == 'push' && vars.ECR_REPOSITORY_URI != ''
+    needs: test
+    runs-on: ubuntu-latest
+    concurrency: submit
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - run: ./.ci/push.sh
+        env:
+          ECR_REPOSITORY_URI: ${{ vars.ECR_REPOSITORY_URI }}
+          S3_SUBMISSION_URI: ${{ vars.S3_SUBMISSION_URI }}
