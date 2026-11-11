@@ -1,4 +1,0 @@
-PROMPT = """A rectangular mounting plate, 80 mm long (X) by 50 mm wide (Y) and 8 mm thick, centred on the origin in X and Y with its bottom face on Z=0. Four 6 mm diameter through holes at (32, 17), (-32, 17), (32, -17) and (-32, -17)."""
-import cadquery as cq
-holes = cq.Workplane("XY").pushPoints([(32, 17), (-32, 17), (32, -17), (-32, -17)]).circle(3).extrude(8)
-result = cq.Workplane("XY").box(80, 50, 8, centered=(True, True, False)).cut(holes)

@@ -1,7 +1,7 @@
 """Mesh loading, surface sampling and solid voxelization.
 
-Everything downstream (metrics, rendering) works on trimesh meshes, so any CAD
-engine that can export STEP or STL plugs in here without further changes.
+The only file format in this project is STEP. Scoring and rendering work on a
+triangle mesh tessellated from it.
 """
 from __future__ import annotations
 
@@ -12,19 +12,12 @@ import trimesh
 
 
 def load_mesh(path: str | Path) -> trimesh.Trimesh:
-    """Load STEP / STL / OBJ / PLY / GLB into a single triangle mesh."""
-    path = Path(path)
-    ext = path.suffix.lower()
-    if ext in (".step", ".stp"):
-        return _load_step(path)
-    mesh = trimesh.load(path, force="mesh")
-    if not isinstance(mesh, trimesh.Trimesh) or len(mesh.faces) == 0:
-        raise ValueError(f"no triangles in {path}")
-    return mesh
-
-
-def _load_step(path: Path) -> trimesh.Trimesh:
+    """Tessellate a STEP file (.step or .stp). STEP is the only format we handle."""
     import cadquery as cq
+
+    path = Path(path)
+    if path.suffix.lower() not in (".step", ".stp"):
+        raise ValueError(f"{path.name}: only STEP files are supported")
 
     vals = cq.importers.importStep(str(path)).vals()
     if not vals:
@@ -46,6 +39,16 @@ def shape_to_mesh(shape, rel_tol: float = 5e-4) -> trimesh.Trimesh:
     if len(mesh.faces) == 0:
         raise ValueError("tessellation produced no triangles")
     return mesh
+
+
+def genus(mesh: trimesh.Trimesh) -> int:
+    """Number of through-holes, from the Euler characteristic of the closed surface.
+
+    V - E + F = 2 * (bodies - genus). Needs a watertight mesh; returns -1 if it is not.
+    """
+    if not mesh.is_watertight:
+        return -1
+    return int(round(mesh.body_count - mesh.euler_number / 2))
 
 
 def sample_surface(mesh: trimesh.Trimesh, n: int, seed: int = 0):

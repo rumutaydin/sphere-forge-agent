@@ -1,9 +1,11 @@
 # Instructions for coding agents
 
-You are working in a hackathon repo: an agent that turns a prompt or image into a CAD
-part, ranked by geometric similarity to a hidden target. Three people work in parallel,
-each with their own coding agent. Your job is to raise the eval score inside one track
-without breaking the other two.
+You are working in a hackathon repo (Sphere Forge #1, code freeze Friday 08:00). The
+agent here turns a design brief, a `facts.json` and eight orthographic views of a
+mechanical part into one STEP solid. It is scored against a hidden target:
+`0.30 volume + 0.30 surface + 0.20 dimensions + 0.20 holes`, after rigid alignment.
+Three people work in parallel, each with their own coding agent. Your job is to raise
+the score inside one track without breaking the other two.
 
 ## Before you write anything
 
@@ -17,9 +19,9 @@ without breaking the other two.
 
 | Track | Paths |
 |---|---|
-| A — Measure | `forge/metrics.py` `forge/geometry.py` `forge/render.py` `forge/bench.py` `forge/sensitivity.py` `forge/__main__.py` `forge/llm.py` `bench/` `results/` `scripts/` |
-| B — Understand | `forge/stages/understand.py` `forge/library/` |
-| C — Build | `forge/stages/build.py` `forge/stages/verify.py` `forge/stages/select.py` `forge/backends/` |
+| A — Ship | `forge/run.py` `forge/llm.py` `forge/score.py` `forge/cases.py` `forge/__main__.py` `scripts/` `bench/` `results/` `Dockerfile` `.github/` `pyproject.toml` |
+| B — See | `forge/facts.py` `forge/render.py` `forge/geometry.py` `forge/stages/understand.py` `forge/vision.py` |
+| C — Build | `forge/stages/build.py` `forge/stages/verify.py` `forge/stages/select.py` `forge/backends/` `forge/library/` |
 | Shared | `forge/types.py` `forge/pipeline.py` `AGENTS.md` `docs/ARCHITECTURE.md` `docs/STRATEGY.md` |
 
 Edit only your track's paths plus its brief in `docs/tracks/` and its tests in `tests/`.
@@ -32,28 +34,37 @@ Changes to shared files go in their own pull request.
 measure -> change one thing -> measure -> keep or revert -> write it down
 ```
 
-1. `uv run pytest -q` passes before and after. It needs no API key.
-2. Baseline: `uv run python -m forge eval --tag <track>-<idea>-before` (add `--only` for a
-   quick subset while iterating, the full set before a pull request).
+1. `uv run pytest -q` passes before and after. It needs no model.
+2. Baseline: `uv run python -m forge eval --inputs artifacts/inputs --tag <track>-<idea>-before`
+   (`--only 1 5` for a quick subset while iterating).
 3. Make the change.
-4. `uv run python -m forge eval --tag <track>-<idea>-after`, then `uv run python -m forge board`.
-5. If the score did not improve beyond run-to-run noise, revert. Say so plainly.
+4. Same command with `-after`, then `uv run python -m forge board`.
+5. If the number did not improve beyond run-to-run noise, revert. Say so plainly.
 6. Append one line to the Lab notes of your track brief: date, idea, before → after, kept or dropped.
 
-When a case scores badly, open `runs/<run>/<case>/spec.md` first. A wrong brief is a
-Track B problem; a right brief with a wrong part is Track C.
+There are three numbers. The **leaderboard** is the truth and needs a submission. The
+**local score** needs a target STEP, which only our own cases in `bench/cases/` have.
+The **self-score** needs only `facts.json`; it is exact for dimensions and holes and a
+hint for the rest. Say which one you are quoting.
 
 ## Rules
 
-- **A failed part scores zero and counts in the mean.** Never report an average over
-  only the parts that built.
-- **Never tune on held-out cases** or paste benchmark targets into prompts.
-- **Do not invent scores.** If you could not run the eval (no key, no time), say that.
-- **Frame and proportions before features.** See the floors table in `docs/SCOREBOARD.md`.
+- **STEP only.** One solid per part, millimetres, `test_case_<n>.stp`. No STL, no mesh
+  formats, anywhere in the pipeline's outputs.
+- **Every task gets a file.** A missing or non-solid file scores 0; the bounding-box
+  fallback scores about 0.3. Never remove the fallback.
+- **Never scale or mirror a finished part** to make a check pass.
+- **Do not tune to the nine practice parts.** The final ranking uses nine different parts.
+- **Do not invent scores.** If you could not run the eval, say that.
+- **The whole run must finish in 20 minutes** on the organisers' machine. Report the
+  wall-clock of any change that adds model calls.
+- **All settings are environment variables** frozen in the image (`OPENAI_*`, `FORGE_*`).
+  No secrets in the repo; `*.env` files are ignored by git.
 - **No new dependency** without telling the human; three people share one lockfile.
 - **Keep `forge/pipeline.py` thin.** Logic belongs in a stage.
 - **Generated CAD programs run in a subprocess with a timeout.** Keep it that way.
 - Branch `<track>/<idea>`, pull request into `main`, description states before → after.
+  In the team repo a merge to `main` is a submission: only merge with outputs regenerated.
 
 ## Commands
 
@@ -61,10 +72,12 @@ Track B problem; a right brief with a wrong part is Track C.
 uv sync
 uv run pytest -q
 uv run python -m forge bench
-uv run python -m forge solve "a 40 mm cube with a 10 mm hole through the top" -o runs/try
-uv run python -m forge eval --only 03 08 --tag c-example
-uv run python -m forge score runs/try/cand0/try0/part.step bench/targets/03_flange/part.step
+uv run python scripts/main.py --input_dir artifacts/inputs --output_dir artifacts/outputs
+uv run python -m forge eval --inputs artifacts/inputs --only 1 3 --tag c-example
+uv run python -m forge check artifacts/outputs/test_case_1.stp artifacts/inputs/test_case_1/facts.json
+uv run python -m forge score mine.step bench/cases/03_flange/answer.step
 uv run python -m forge board
 ```
 
-`ANTHROPIC_API_KEY` must be set for `solve` and `eval`. `FORGE_MODEL` overrides the model.
+`OPENAI_BASE_URL`, `OPENAI_API_KEY` and `OPENAI_MODEL` must point at an OpenAI-compatible
+endpoint that accepts images. `artifacts/inputs` is the organisers' practice set.

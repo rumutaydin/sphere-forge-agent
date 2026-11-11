@@ -1,12 +1,12 @@
 """Command line.
 
-  uv run python -m forge bench                       build benchmark targets
-  uv run python -m forge sensitivity                 what does the metric punish?
-  uv run python -m forge score PRED TARGET           compare two STEP/STL files
-  uv run python -m forge solve "a 20mm cube" -o out  run the agent on one task
-  uv run python -m forge eval [--image] [--only 03]  run the agent on the benchmark and score it
-  uv run python -m forge eval --tag c-fewshot        ...and file the scores under results/
-  uv run python -m forge board                       table of everything in results/
+  uv run python -m forge bench                      build our reference cases (with answers)
+  uv run python -m forge score PRED.step TARGET.step
+  uv run python -m forge check PART.step FACTS.json check a STEP file against a task's facts
+  uv run python -m forge eval --tag c-fewshot       agent on our reference cases, full score
+  uv run python -m forge eval --inputs artifacts/inputs --tag c-fewshot
+                                                    agent on the organisers' cases, self-score only
+  uv run python -m forge board                      table of everything in results/
 """
 from __future__ import annotations
 
@@ -15,30 +15,10 @@ import json
 import time
 from pathlib import Path
 
-from . import bench, sensitivity
-from .metrics import MODES, compare
-from .types import Task
-
+from .cases import BENCH, build_bench, load_tasks
 
 RESULTS = Path(__file__).resolve().parent.parent / "results"
-
-
-def _agent(args):
-    from .pipeline import Agent
-    from .backends import get_backend
-    from .llm import AnthropicLLM
-
-    return Agent(AnthropicLLM(args.model), get_backend(args.backend),
-                 n_candidates=args.candidates, rounds=args.rounds, effort=args.effort)
-
-
-def _print_report(rep: dict) -> None:
-    print(f"{'mode':8s}{'iou':>8s}{'f1':>8s}{'chamfer':>10s}{'hd95':>8s}")
-    for mode in MODES:
-        r = rep[mode]
-        print(f"{mode:8s}{r['iou']:8.3f}{r['f1']:8.3f}{r['chamfer']:10.4f}{r['hausdorff95']:8.3f}")
-    print("volume ratio %.3f   sorted extent ratios %s" % (
-        rep["ratios"]["volume"], [round(x, 3) for x in rep["ratios"]["extents_sorted"]]))
+PARTS = ("volume", "surface", "dimensions", "holes")
 
 
 def main() -> None:
@@ -46,68 +26,77 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("bench")
     sub.add_parser("board")
-    s = sub.add_parser("sensitivity")
-    s.add_argument("--only", nargs="*")
     s = sub.add_parser("score")
     s.add_argument("pred")
     s.add_argument("target")
-    s.add_argument("--res", type=int, default=64)
-    for name in ("solve", "eval"):
-        s = sub.add_parser(name)
-        s.add_argument("--backend", default="cadquery")
-        s.add_argument("--model", default=None)
-        s.add_argument("--candidates", type=int, default=3)
-        s.add_argument("--rounds", type=int, default=2)
-        s.add_argument("--effort", default="high")
-        s.add_argument("-o", "--out", default=None)
-        if name == "solve":
-            s.add_argument("prompt", nargs="?")
-            s.add_argument("--image")
-        else:
-            s.add_argument("--only", nargs="*")
-            s.add_argument("--tag", help="save scores to results/<time>-<tag>.json (use <track>-<idea>)")
-            s.add_argument("--image", action="store_true", help="give the agent the target render, not the text")
+    s = sub.add_parser("check")
+    s.add_argument("part")
+    s.add_argument("facts")
+    s = sub.add_parser("eval")
+    s.add_argument("--inputs", default=str(BENCH / "cases"), help="folder of tasks in the organisers' layout")
+    s.add_argument("--only", nargs="*")
+    s.add_argument("--tag", help="save scores to results/<time>-<tag>.json (use <track>-<idea>)")
+    s.add_argument("-o", "--out", default=None)
     args = ap.parse_args()
 
     if args.cmd == "bench":
-        bench.build()
-    elif args.cmd == "sensitivity":
-        result = sensitivity.run(only=args.only)
-        print(sensitivity.format_table(result))
-        (bench.ROOT / "sensitivity.json").write_text(json.dumps(result, indent=1))
+        build_bench()
     elif args.cmd == "score":
-        _print_report(compare(args.pred, args.target, res=args.res))
-    elif args.cmd == "solve":
-        out = Path(args.out or f"runs/solve-{time.strftime('%H%M%S')}")
-        task = Task(args.prompt, Path(args.image) if args.image else None)
-        print(json.dumps(_agent(args).solve(task, out), indent=1))
+        from .score import score
+
+        rep = score(args.pred, args.target)
+        print(f"score {rep['score']:.3f}   " + "   ".join(f"{k} {rep[k]:.3f}" for k in PARTS))
+    elif args.cmd == "check":
+        from .backends._cq_runner import measure
+        from .facts import report, self_check
+        from .geometry import genus, shape_to_mesh
+        import cadquery as cq
+
+        vals = cq.importers.importStep(args.part).vals()
+        shape = vals[0] if len(vals) == 1 else cq.Compound.makeCompound(vals)
+        info = measure(shape)
+        info["genus"] = genus(shape_to_mesh(shape))
+        check = self_check(info, json.loads(Path(args.facts).read_text()))
+        print(f"self-score {check['self_score']:.3f}\n{report(check)}")
     elif args.cmd == "eval":
-        agent = _agent(args)
+        from .run import run_all
+        from .score import score
+
         root = Path(args.out or f"runs/eval-{time.strftime('%m%d-%H%M%S')}")
+        tasks = {t.name: t for t in load_tasks(args.inputs, args.only)}
+        summaries = run_all(Path(args.inputs), root / "outputs", only=args.only, work_dir=root / "work")
         rows = {}
-        for case in bench.cases(args.only):
-            task = Task(image=case.image) if args.image else Task(prompt=case.prompt)
-            summary = agent.solve(task, root / case.id)
-            # A failed case scores zero. Dropping failures would flatter the average.
-            rep = compare(summary["stl"], case.target) if summary["stl"] else None
-            rows[case.id] = rep
-            print(f"{case.id:20s}" + "".join(
-                f"  {m} {rep[m]['iou']:.3f}" if rep else f"  {m} 0.000" for m in MODES), flush=True)
-        mean = {m: sum(r[m]["iou"] if r else 0.0 for r in rows.values()) / max(len(rows), 1) for m in MODES}
-        print(f"{'MEAN IoU':20s}" + "".join(f"  {m} {v:.3f}" for m, v in mean.items()))
-        scores = {"mean_iou": mean, "input": "image" if args.image else "text", "n_cases": len(rows),
-                  "settings": {k: getattr(args, k) for k in ("backend", "model", "candidates", "rounds", "effort")},
-                  "cases": rows}
-        (root / "scores.json").write_text(json.dumps(scores, indent=1))
+        for s in summaries:
+            task = tasks[s["task"]]
+            row = {"self_score": s["self_check"].get("self_score", 0.0), "chosen": s["chosen"]}
+            # A task with no part scores zero. Dropping failures would flatter the average.
+            if task.answer:
+                row.update(score(s["step"], task.answer) if s["step"] else {"score": 0.0, **dict.fromkeys(PARTS, 0.0)})
+            rows[task.name] = row
+            print(f"{task.name:20s} self {row['self_score']:.3f}"
+                  + (f"   score {row['score']:.3f}" if "score" in row else ""), flush=True)
+        n = max(len(rows), 1)
+        scored = [r for r in rows.values() if "score" in r]
+        result = {
+            "inputs": args.inputs, "n_cases": len(rows),
+            "mean_self_score": sum(r["self_score"] for r in rows.values()) / n,
+            "mean_score": sum(r["score"] for r in scored) / len(scored) if scored else None,
+            "cases": rows,
+        }
+        print(f"MEAN self {result['mean_self_score']:.3f}"
+              + (f"   score {result['mean_score']:.3f}" if scored else "   (no answer files: self-score only)"))
+        (root / "scores.json").write_text(json.dumps(result, indent=1))
         if args.tag:
             RESULTS.mkdir(exist_ok=True)
-            (RESULTS / f"{time.strftime('%m%d-%H%M')}-{args.tag}.json").write_text(json.dumps(scores, indent=1))
+            (RESULTS / f"{time.strftime('%m%d-%H%M')}-{args.tag}.json").write_text(json.dumps(result, indent=1))
     elif args.cmd == "board":
-        print(f"{'run':40s}{'input':>7s}{'cases':>6s}" + "".join(f"{m:>8s}" for m in MODES))
+        print(f"{'run':40s}{'cases':>6s}{'self':>8s}{'score':>8s}{'leaderboard':>13s}")
         for f in sorted(RESULTS.glob("*.json")):
             r = json.loads(f.read_text())
-            print(f"{f.stem:40s}{r.get('input', '?'):>7s}{r.get('n_cases', 0):6d}"
-                  + "".join(f"{r['mean_iou'][m]:8.3f}" for m in MODES))
+            score_txt = f"{r['mean_score']:8.3f}" if r.get("mean_score") is not None else f"{'-':>8s}"
+            lb = r.get("leaderboard")
+            print(f"{f.stem:40s}{r.get('n_cases', 0):6d}{r.get('mean_self_score', 0):8.3f}{score_txt}"
+                  + (f"{lb:13.3f}" if lb is not None else f"{'-':>13s}"))
 
 
 if __name__ == "__main__":

@@ -12,8 +12,8 @@ You write CadQuery 2.x (Python, OpenCASCADE kernel). Rules for every program:
 - `import cadquery as cq`; assign the final solid to a variable named `result`.
 - No file I/O, no show_object, no printing. Pure geometry.
 - Put every dimension in a named variable at the top, then build from those.
-- Units and coordinate frame come from the task. If the task gives none: millimetres,
-  Z up, part centred on the origin in X and Y with its base on Z=0.
+- Millimetres. Use the frame of the brief and the views: the minimum corner of the part's
+  bounding box sits at the origin, so every coordinate in the brief can be used as written.
 - Position features with explicit coordinates (`.translate`, `.pushPoints`, `.center`)
   rather than face selectors when you can; selectors like ">Z" break silently after
   fillets or when several faces tie.
@@ -39,6 +39,9 @@ class CadQueryBackend(CadBackend):
     language = "python"
     guide = GUIDE
 
+    def box_code(self, x: float, y: float, z: float) -> str:
+        return f"import cadquery as cq\nresult = cq.Workplane('XY').box({x}, {y}, {z}, centered=False)\n"
+
     def execute(self, code: str, out_dir: Path, timeout: float = 90) -> ExecResult:
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -55,7 +58,7 @@ class CadQueryBackend(CadBackend):
         if proc.returncode != 0:
             return ExecResult(False, proc.stderr.strip()[-2500:] or "unknown failure")
         measure = json.loads((out_dir / "measure.json").read_text())
-        res = ExecResult(True, "", out_dir / "part.step", out_dir / "part.stl", measure)
+        res = ExecResult(True, "", out_dir / "part.step", measure)
         if not measure["valid"]:
             res.error = "kernel reports the shape is not a valid solid"
         elif measure["solids"] > 1:

@@ -1,7 +1,0 @@
-PROMPT = """An L-shaped bracket. The horizontal leg is a slab from x=0 to 60, y=-20 to 20, z=0 to 6 (mm). The vertical leg is 6 mm thick, occupying x=0 to 6, the same 40 mm width in Y, and rising to z=40. There is an 8 mm diameter through hole in the horizontal leg with a vertical axis at (x=40, y=0), and an 8 mm through hole in the vertical leg with its axis along X at (y=0, z=25)."""
-import cadquery as cq
-horiz = cq.Workplane("XY").box(60, 40, 6, centered=(False, True, False))
-vert = cq.Workplane("XY").box(6, 40, 40, centered=(False, True, False))
-h1 = cq.Workplane("XY").center(40, 0).circle(4).extrude(6)
-h2 = cq.Workplane("YZ").center(0, 25).circle(4).extrude(6)
-result = horiz.union(vert).cut(h1).cut(h2)

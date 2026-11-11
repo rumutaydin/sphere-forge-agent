@@ -1,45 +1,65 @@
-"""TRACK B. Stage 1: task (text and/or image) -> Spec.
+"""TRACK B. Stage 1: how a task is shown to the model, and the build plan.
 
-The hidden target is fixed; the prompt is all we get. This stage turns a vague
-or visual description into an explicit modelling brief with a coordinate frame,
-an envelope and a dimensioned feature list, so the code generator never has to
-guess silently.
+The brief already carries exact dimensions, and facts.json carries the exact
+bounding box, volume and hole inventory. So this stage no longer has to invent
+missing numbers. Its job is to lay brief, facts and the eight views out so the
+model can cross-reference them, and to get a build plan that says which
+features come from the text and which have to be read off the views.
 """
 from __future__ import annotations
 
-from ..library import catalogue
+import json
+
 from ..llm import LLM, image_block, text_block
-from ..types import Spec, Task
+from ..types import Task
 
-SPEC_SYSTEM = """\
-You are a mechanical engineer preparing a part for CAD modelling. Your model will be
-scored by geometric overlap with a hidden reference part, so a wrong coordinate frame
-or wrong overall proportion costs far more than a missing small feature.
+VIEW_NOTES = {
+    "view_0_front": "front, looking along +Y: X to the right, Z up",
+    "view_1_back": "back, looking along -Y: X to the left, Z up",
+    "view_2_left": "left, looking along +X: Y to the left, Z up",
+    "view_3_right": "right, looking along -X: Y to the right, Z up",
+    "view_4_top": "top, looking along -Z: X to the right, Y up",
+    "view_5_bottom": "bottom, looking along +Z: X to the right, Y down",
+    "view_6_iso_front_right_top": "isometric from +X, -Y, +Z",
+    "view_7_iso_back_left_bottom": "isometric from -X, +Y, -Z",
+}
 
-From the task (text and/or image), write a modelling brief:
-1. FRAME: units, which way is up, where the origin sits relative to the part. Use what
-   the task states. Where it is silent, say so and pick the most conventional choice.
-2. ENVELOPE: the overall bounding box size along X, Y, Z.
-3. BUILD PLAN: the main body first, then features in order of volume, each with every
-   dimension and its position in absolute coordinates.
-4. STANDARD PARTS: if any feature is a catalogue item below, name the helper and its
-   arguments instead of describing the geometry.
-5. UNKNOWNS: anything you had to guess, with the value you chose and why.
-Do the arithmetic explicitly. Do not write code.
+PLAN_SYSTEM = """\
+You are a mechanical engineer planning how to model a part in CAD. You get a design
+brief with exact dimensions, a facts file measured from the real part, and eight
+orthographic views. All three use one frame: millimetres, origin at the minimum corner
+of the part's bounding box.
 
-CATALOGUE OF READY-MADE HELPERS:
-{catalogue}"""
+The result is scored on volume overlap, surface match, bounding-box dimensions and the
+number of through-holes. Pose does not matter. Size and handedness do: never mirror.
+
+Write a build plan:
+1. BASE BODY: the simplest solid that gives the right envelope and gross mass, and the
+   operation that makes it (extrude a profile, revolve a profile, union of blocks).
+2. FEATURES in order of volume: for each, the operation, every dimension, its position,
+   and where the numbers come from (brief, facts, or read from a named view).
+3. THROUGH-HOLES: list each one that passes fully through. The count must equal
+   `through_holes_genus` in the facts. A blind hole is not a through-hole.
+4. GAPS: what the brief leaves unspecified, and the value you will use, taken from the
+   views or from the volume and surface area in the facts.
+5. CHECKS: bounding box, volume and through-hole count your plan should produce.
+Do the arithmetic explicitly. Do not write code."""
 
 
-def task_content(task: Task) -> list[dict]:
-    """The task as model input blocks. Every later stage shows the model this too."""
-    content = []
-    if task.image:
-        content.append(image_block(task.image))
-    content.append(text_block("TASK:\n" + (task.prompt or "Reproduce the part shown in the image.")))
+def task_content(task: Task, with_views: bool = True) -> list[dict]:
+    """The task as model input blocks. Every stage shows the model this."""
+    content = [text_block("DESIGN BRIEF:\n" + task.description.strip())]
+    if task.facts:
+        content.append(text_block("FACTS (measured from the target part):\n" + json.dumps(task.facts, indent=1)))
+    if with_views:
+        for view in task.views:
+            content.append(text_block("VIEW " + VIEW_NOTES.get(view.stem, view.stem) + ":"))
+            content.append(image_block(view))
+        if task.context:
+            content.append(text_block("CONTEXT (the part in orange inside its assembly; for function only):"))
+            content.append(image_block(task.context, max_side=512))
     return content
 
 
-def make_spec(llm: LLM, task: Task, effort: str = "high") -> Spec:
-    text = llm.complete(SPEC_SYSTEM.format(catalogue=catalogue()), task_content(task), effort)
-    return Spec(text=text)
+def make_plan(llm: LLM, task: Task) -> str:
+    return llm.complete(PLAN_SYSTEM, task_content(task))

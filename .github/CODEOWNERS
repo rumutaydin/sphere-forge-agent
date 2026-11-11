@@ -2,17 +2,17 @@
 # Until then every path falls back to the repo owner.
 *                                   @rumutaydin
 
-# Track A - Measure
-# /forge/metrics.py /forge/geometry.py /forge/render.py /forge/bench.py
-# /forge/sensitivity.py /forge/__main__.py /forge/llm.py /bench/ /results/ /scripts/
+# Track A - Ship
+# /forge/run.py /forge/llm.py /forge/score.py /forge/cases.py /forge/__main__.py
+# /scripts/ /bench/ /results/ /Dockerfile /.github/ /pyproject.toml
 #                                   TRACK_A_USERNAME
 
-# Track B - Understand
-# /forge/stages/understand.py /forge/library/
+# Track B - See
+# /forge/facts.py /forge/render.py /forge/geometry.py /forge/stages/understand.py /forge/vision.py
 #                                   TRACK_B_USERNAME
 
 # Track C - Build
-# /forge/stages/build.py /forge/stages/verify.py /forge/stages/select.py /forge/backends/
+# /forge/stages/build.py /forge/stages/verify.py /forge/stages/select.py /forge/backends/ /forge/library/
 #                                   TRACK_C_USERNAME
 
 # Shared: everyone reviews

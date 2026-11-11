@@ -1,7 +1,7 @@
-"""Dependency-light renderer: shaded point splats with a z-buffer.
+"""Renders a part in the organisers' eight orthographic views.
 
-Good enough for a vision model to judge shape, and it never needs a GPU or a
-display. Views are orthographic so dimensions can be read off them.
+Same cameras and file names as the task inputs, so our render of view k can be
+laid next to their view k. Point-splat rendering: no GPU, no display.
 """
 from __future__ import annotations
 
@@ -12,14 +12,20 @@ from PIL import Image, ImageDraw
 
 from .geometry import sample_surface
 
-# name -> (direction the camera looks along, camera up vector)
+# file stem -> (direction the camera looks along, camera up vector). From the task README:
+# front looks along +Y (X right, Z up), top looks along -Z (X right, Y up), and so on.
 VIEWS = {
-    "iso": ((-1.0, 1.0, -0.8), (0, 0, 1)),
-    "front (looking +Y)": ((0, 1, 0), (0, 0, 1)),
-    "top (looking -Z)": ((0, 0, -1), (0, 1, 0)),
-    "right (looking -X)": ((-1, 0, 0), (0, 0, 1)),
+    "view_0_front": ((0, 1, 0), (0, 0, 1)),
+    "view_1_back": ((0, -1, 0), (0, 0, 1)),
+    "view_2_left": ((1, 0, 0), (0, 0, 1)),
+    "view_3_right": ((-1, 0, 0), (0, 0, 1)),
+    "view_4_top": ((0, 0, -1), (0, 1, 0)),
+    "view_5_bottom": ((0, 0, 1), (0, -1, 0)),
+    "view_6_iso_front_right_top": ((-1, 1, -1), (0, 0, 1)),
+    "view_7_iso_back_left_bottom": ((1, -1, 1), (0, 0, 1)),
 }
 LIGHT = np.array([0.35, -0.5, 0.8])
+COLOR = (200, 150, 95)
 
 
 def _basis(look, up):
@@ -30,7 +36,7 @@ def _basis(look, up):
     return r, np.cross(r, f), f
 
 
-def render_view(mesh, look, up, size: int = 320, n_pts: int = 250_000, color=(110, 150, 215)):
+def render_view(mesh, look, up, size: int = 384, n_pts: int = 250_000, color=COLOR) -> np.ndarray:
     pts, nrm = sample_surface(mesh, n_pts, seed=0)
     r, u, f = _basis(look, up)
     centre = mesh.bounds.mean(axis=0)
@@ -55,21 +61,33 @@ def render_view(mesh, look, up, size: int = 320, n_pts: int = 250_000, color=(11
     return img
 
 
-def render_grid(mesh, out_path: str | Path, size: int = 320, color=(110, 150, 215)) -> Path:
-    """2x2 contact sheet (iso, front, top, right) with labels and bbox size."""
-    tiles = []
-    for name, (look, up) in VIEWS.items():
-        tile = Image.fromarray(render_view(mesh, look, up, size, color=color))
-        ImageDraw.Draw(tile).text((6, 4), name, fill=(0, 0, 0))
-        tiles.append(tile)
-    sheet = Image.new("RGB", (size * 2, size * 2 + 18), "white")
-    for i, tile in enumerate(tiles):
-        sheet.paste(tile, ((i % 2) * size, (i // 2) * size))
-    ex = mesh.extents
-    ImageDraw.Draw(sheet).text(
-        (6, size * 2 + 3), f"bbox size  X {ex[0]:.2f}   Y {ex[1]:.2f}   Z {ex[2]:.2f}", fill=(0, 0, 0)
-    )
+def render_views(mesh, out_dir: str | Path, size: int = 1024) -> list[Path]:
+    """Write the eight views as images/view_*.png-style files. Used to build our own cases."""
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for stem, (look, up) in VIEWS.items():
+        path = out_dir / f"{stem}.png"
+        Image.fromarray(render_view(mesh, look, up, size)).save(path)
+        paths.append(path)
+    return paths
+
+
+def contact_sheet(images: list, labels: list[str], out_path: str | Path, tile: int = 384) -> Path:
+    """4x2 sheet from eight images (paths or arrays), labelled. One image for the model to read."""
+    sheet = Image.new("RGB", (tile * 4, tile * 2), "white")
+    for i, (img, label) in enumerate(zip(images, labels)):
+        im = Image.open(img).convert("RGB") if isinstance(img, (str, Path)) else Image.fromarray(img)
+        im = im.resize((tile, tile))
+        ImageDraw.Draw(im).text((6, 4), label, fill=(0, 0, 0))
+        sheet.paste(im, ((i % 4) * tile, (i // 4) * tile))
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(out_path)
     return out_path
+
+
+def render_sheet(mesh, out_path: str | Path, tile: int = 384) -> Path:
+    """Our part in all eight views on one sheet, in the same order as the task's views."""
+    imgs = [render_view(mesh, look, up, tile) for look, up in VIEWS.values()]
+    return contact_sheet(imgs, [s.split("_", 2)[2] for s in VIEWS], out_path, tile)

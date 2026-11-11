@@ -2,12 +2,12 @@
 
 **Idea in one sentence:**
 
-**Score** (from `uv run python -m forge board`)
+**Numbers** (say which: leaderboard, local score, or self-score)
 
-| | input | cases | IoU raw | IoU unit |
-|---|---|---|---|---|
-| before | | | | |
-| after | | | | |
+| | cases | self-score | local score | leaderboard | minutes for 9 parts |
+|---|---|---|---|---|---|
+| before | | | | | |
+| after | | | | | |
 
 - [ ] `uv run pytest -q` passes
 - [ ] only my track's files changed (or this PR is a shared-file change everyone approved)

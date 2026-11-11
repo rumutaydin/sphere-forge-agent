@@ -1,79 +1,87 @@
 # Scoreboard
 
-Numbers to aim at, and how to record ours.
+## How we are scored
 
-## The ladder
+```
+score = 0.30 volume + 0.30 surface + 0.20 dimensions + 0.20 holes
+```
+
+| Part | Weight | Rule (from the kickoff) |
+|---|---|---|
+| Volume overlap | 30% | overall form, after rigid alignment |
+| Surface match | 30% | surface position, checked at 0.5–10% of part size |
+| Dimensions | 20% | 2% off loses 10%; 20% off loses everything |
+| Holes | 20% | through-holes, counted exactly from CAD topology |
+
+- Alignment by rotation and translation only. **No scaling, no mirroring.**
+- A missing, broken or non-solid file scores 0 for that part.
+- Three tiers by face count (simple ≤ 30, medium ≤ 200, complex above), weighted equally.
+- The leaderboard keeps each team's **best** commit, so submit often.
+
+## The ladder (organisers' medians over 14 parts)
 
 ```mermaid
 flowchart LR
-    F0["0.43<br/>a plain box of the right size"] --> F1["0.58<br/>right outline, no holes or pockets"]
-    F1 --> F2["0.81<br/>one-shot frontier model<br/>(published)"]
-    F2 --> F3["0.96<br/>agent loop with feedback<br/>(published)"]
-    F3 --> F4["1.00<br/>identical"]
+    A["0.00<br/>missing or broken file"] --> B["0.32<br/>bounding box"]
+    B --> C["0.51<br/>convex hull"]
+    C --> D["0.62<br/>right shape, 10% too large"]
+    D --> E["0.90<br/>right shape, 2% too large"]
+    E --> F["1.00<br/>exact, any pose"]
 ```
 
-The first two are measured on our own 12 parts. The published ones come from a different
-benchmark, so read them as "what a good system reaches", not as directly comparable.
+Reading: size precision is worth as much as shape. A perfect shape 10% too large (0.62)
+barely beats a shrink-wrap (0.51). The brief and `facts.json` give exact sizes, so
+there is no excuse to lose these points.
 
 ## Our runs
 
-| Run | Input | Cases | IoU raw | IoU unit | Notes |
+| Run | Cases | Self-score | Local score | Leaderboard | Notes |
 |---|---|---|---|---|---|
-| base agent, first real run | text | 12 | **not run yet** | | needs an API key; Track A's first job |
-| base agent, first real run | image | 12 | **not run yet** | | |
+| fallback boxes only | 9 practice | — | — | **not submitted yet** | expected about 0.3 |
+| base agent | 9 practice | **not run yet** | — | | needs the model endpoint |
 
-Do not edit this table for routine runs. Tag the eval and it files itself:
+Routine runs file themselves: `uv run python -m forge eval --tag <track>-<idea>` writes
+`results/<time>-<tag>.json`, and `uv run python -m forge board` prints the table. After a
+submission, add `"leaderboard": <value>` to that JSON file so the three numbers sit together.
 
-```bash
-uv run python -m forge eval --tag c-fewshot
-```
+Three different numbers, do not mix them up:
 
-```bash
-uv run python -m forge board
-```
+| Number | Needs | Trust |
+|---|---|---|
+| **Leaderboard** | a submission | the truth |
+| **Local score** (`forge/score.py`) | the target STEP | our copy of their scorer; reads high (below) |
+| **Self-score** (`forge/facts.py`) | only `facts.json` | exact for dimensions and holes, a hint for the rest |
 
-Update the table above only for milestones (new baseline, new best).
+## How close is our local scorer?
 
-## Floors: what cheap mistakes cost
+`uv run python scripts/calibrate_score.py`, medians over our 12 reference parts against
+their slide (14 different parts):
 
-Mean IoU over the 12 reference parts after damaging the target (`forge sensitivity`).
+| Damage | Ours | Theirs |
+|---|---|---|
+| exact part, any pose | 1.00 | 1.00 |
+| 2% too large | 0.95 | 0.90 |
+| 5% too long | 0.94 | 0.88 |
+| 10% too large | 0.68 | 0.62 |
+| convex hull | 0.60 | 0.51 |
+| bounding box | 0.47 | 0.32 |
 
-| Damage | raw | center | unit | rot24 | icp |
+Same order, ours 0.05–0.15 higher. Part of that is the parts (ours are simpler, with
+fewer holes), part is detail we guessed. Use the local score to compare two versions of
+our agent, never to predict the leaderboard.
+
+## The practice parts
+
+| Case | Part | Faces | Tier | Through-holes | Notable |
 |---|---|---|---|---|---|
-| shifted by 5% of diagonal | 0.61 | 1.00 | 1.00 | 1.00 | 1.00 |
-| rotated 5° | 0.78 | 0.78 | 0.73 | 0.73 | 1.00 |
-| rotated 90° | 0.48 | 0.48 | 0.48 | 1.00 | 0.72 |
-| wrong up axis | 0.16 | 0.16 | 0.16 | 1.00 | 0.65 |
-| all dimensions +5% | 0.76 | 0.76 | 1.00 | 1.00 | 0.78 |
-| all dimensions +20% | 0.36 | 0.36 | 1.00 | 1.00 | 0.38 |
-| one dimension +10% | 0.79 | 0.79 | 0.68 | 0.68 | 0.80 |
-| one dimension +30% | 0.60 | 0.60 | 0.40 | 0.41 | 0.60 |
-| convex hull (no holes or pockets) | 0.58 | 0.58 | 0.58 | 0.58 | 0.57 |
-| bounding box only | 0.43 | 0.43 | 0.43 | 0.43 | 0.41 |
+| 1 | Camshaft retainer bracket | 17 | simple | 2 | planes and cylinders only |
+| 2 | Engine poppet valve | 12 | simple | 0 | revolved; cones and tori |
+| 3 | Crankshaft bushing | 9 | simple | 1 | revolved sleeve |
+| 4 | Three-throw crankshaft | 178 | medium | 0 | 66 torus faces (fillets) |
+| 5 | Engine cylinder head | 172 | medium | 15 | many holes, countersinks |
+| 6 | Conical finned air filter | 122 | medium | 0 | 72 spline faces, radial pattern |
+| 7 | Angled-bore mounting bracket | 628 | complex | 10 | 222 spline faces |
+| 8 | Hydraulic pump main body | 306 | complex | 11 | cones, spheres |
+| 9 | V6 engine block | 371 | complex | 6 | bores at 45° |
 
-How to read it: under `raw`, a wrong up axis (0.16) is worse than submitting a plain box
-(0.43). Under `unit`, uniform size errors are free but a single wrong proportion is not.
-
-Alignment modes: `raw` compares in absolute coordinates. `center` ignores position.
-`unit` also ignores overall size. `rot24` also ignores which axis is which. `icp` fits
-position and small rotations.
-
-## Published reference points
-
-| System | Input | Benchmark | Result | Source |
-|---|---|---|---|---|
-| Frontier model, single call | text | CADSmith, 100 prompts | median IoU 0.81, 95% build | [CADSmith](https://arxiv.org/html/2603.26512v1) |
-| Same + planner, repair, numeric judge | text | same | median IoU 0.96, 99% build | same |
-| Same + rendered views for the judge | text | same | median IoU 0.96, 100% build, far fewer disasters | same |
-| Best frontier model | text | Text2CAD-Bench, easy tier | IoU 0.59, 11% fail to build | [Text2CAD-Bench](https://arxiv.org/html/2605.18430v1) |
-| Best frontier model | text | Text2CAD-Bench, sweep/loft tier | IoU 0.25, ~70% fail to build | same |
-| Best frontier model | 4 views | BenchCAD | IoU ~0.40 | [BenchCAD](https://arxiv.org/html/2605.10865v1) |
-| Small model fine-tuned on the benchmark | 4 views | BenchCAD | IoU 0.75 | same |
-| CAD-Recode | point cloud | DeepCAD | IoU 0.92 | [CAD-Recode](https://arxiv.org/pdf/2412.14042) |
-
-Three things these say:
-
-1. A feedback loop is worth about +0.15 IoU over a single call on text input.
-2. Build failures dominate on hard shapes. Sweep, loft and shell are the usual culprits.
-3. Image input is much harder than text for general-purpose models. That is where a
-   team can separate itself.
+The hidden set is 9 different parts in the same format and tiers. Do not tune to these.

@@ -1,7 +1,7 @@
-"""Shared data contract between the three tracks.
+"""Shared data contract between the tracks.
 
 Everything that crosses a stage boundary is defined here. Changing this file
-changes every track's code, so it needs a PR that all three people approve.
+changes every track's code, so it needs a PR that everyone approves.
 """
 from __future__ import annotations
 
@@ -13,22 +13,13 @@ from .backends.base import ExecResult
 
 @dataclass
 class Task:
-    """One problem as the organisers hand it to us."""
-    prompt: str | None = None       # text description, may be vague
-    image: Path | None = None       # picture of the target, may be the only input
-    base_code: str | None = None    # existing program to edit (iterative tasks), unused so far
-
-
-@dataclass
-class Spec:
-    """Track B's output and Track C's input: the modelling brief.
-
-    `text` is what the code generator reads. The optional fields let later
-    stages check their work with numbers; fill them when you can extract them.
-    """
-    text: str
-    envelope: tuple[float, float, float] | None = None  # expected bbox size (X, Y, Z)
-    notes: dict = field(default_factory=dict)            # anything else worth passing on
+    """One part, exactly as the organisers hand it over (artifacts/inputs/test_case_<n>/)."""
+    name: str                                   # test_case_<n>; the output is <name>.stp
+    description: str                            # description.md: the design brief, dimensions in mm
+    views: list[Path] = field(default_factory=list)   # 8 orthographic views, 1024 px, sorted
+    context: Path | None = None                 # part highlighted in its assembly; often absent
+    facts: dict = field(default_factory=dict)   # facts.json: bbox, volume, area, hole inventory
+    answer: Path | None = None                  # target STEP; only our own reference cases have one
 
 
 @dataclass
@@ -38,9 +29,14 @@ class Candidate:
     code: str
     dir: Path
     result: ExecResult | None = None
+    check: dict = field(default_factory=dict)   # forge.facts.self_check of the latest result
     approved: bool = False
     log: list[str] = field(default_factory=list)
 
     @property
     def usable(self) -> bool:
         return bool(self.result and self.result.ok)
+
+    @property
+    def self_score(self) -> float:
+        return float(self.check.get("self_score", 0.0))
