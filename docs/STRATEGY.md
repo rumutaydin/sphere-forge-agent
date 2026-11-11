@@ -10,7 +10,7 @@ Updated after the kickoff (Wed 11 Nov). Code freeze is **Friday 08:00**.
 | unknown metric, maybe pose-sensitive | 0.30 volume + 0.30 surface + 0.20 dimensions + 0.20 holes, after rigid alignment; pose is free, size and handedness are not |
 | unknown engine | any tool, as long as the output is one STEP solid in mm named `test_case_<n>.stp` |
 | unknown models | our own model behind an OpenAI-compatible endpoint, hosted on Brev (€250 credit) |
-| unknown limits | 20 minutes for all nine parts, one RTX PRO 6000 (96 GB) inside their container |
+| unknown limits | 1 hour for all nine parts, one RTX PRO 6000 (96 GB) inside their container |
 | one final submission | live leaderboard during the event; best commit counts; final ranking on 9 hidden parts of the same kind |
 
 ## What winning takes now
@@ -54,7 +54,7 @@ flowchart TB
 
 | | Track A — Ship | Track B — See | Track C — Build |
 |---|---|---|---|
-| Question | Does our image run in 20 minutes, and what does the leaderboard say? | How do we know a part is right without the answer? | Can the model write it, and fix it? |
+| Question | Does our image run in one hour, and what does the leaderboard say? | How do we know a part is right without the answer? | Can the model write it, and fix it? |
 | Number to move | leaderboard score; minutes per run | how well the self-score predicts the leaderboard | build rate; self-score per tier |
 | First job | first submission from this repo, model served on Brev | silhouette comparison between their views and ours | run the base agent on the 9 practice parts, sort the failures |
 | Suits someone who likes | infrastructure, serving models, tooling | 3D vision, geometry | prompting, code generation |
@@ -159,8 +159,8 @@ gantt
 2. **Will `facts.json` exist for the hidden parts?** The README says the hidden set is
    "in exactly this format", but the template's own loader does not read it. Our design
    leans on it, so confirm.
-3. **20 minutes or one hour?** The slide says 1 h for nine parts, the README says 20
-   minutes. We plan for 20.
+3. ~~20 minutes or one hour?~~ Settled 11 Nov: **one hour** for the run; 20 minutes is
+   the wait between two submissions.
 4. **May the endpoint be a hosted commercial model**, or must it be one we serve on Brev?
 5. **How strictly must a re-run reproduce our submitted outputs?** Model sampling is not
    fully repeatable. The README says a mismatch is "reviewed by hand".

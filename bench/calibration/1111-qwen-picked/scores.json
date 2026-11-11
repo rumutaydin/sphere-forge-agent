@@ -1,0 +1,42 @@
+{
+ "what": "best built candidate per practice part from the Qwen3.8-27B run on c/facts-driven; 7 and 9 are bounding boxes",
+ "leaderboard_mean": 0.658,
+ "cases": {
+  "test_case_1": {
+   "leaderboard": 0.862,
+   "self_score": 0.989
+  },
+  "test_case_2": {
+   "leaderboard": 0.879,
+   "self_score": 0.991
+  },
+  "test_case_3": {
+   "leaderboard": 0.997,
+   "self_score": 1.0
+  },
+  "test_case_4": {
+   "leaderboard": 0.731,
+   "self_score": 0.894
+  },
+  "test_case_5": {
+   "leaderboard": 0.709,
+   "self_score": 0.98
+  },
+  "test_case_6": {
+   "leaderboard": 0.633,
+   "self_score": 0.783
+  },
+  "test_case_7": {
+   "leaderboard": 0.216,
+   "self_score": null
+  },
+  "test_case_8": {
+   "leaderboard": 0.687,
+   "self_score": 0.88
+  },
+  "test_case_9": {
+   "leaderboard": 0.211,
+   "self_score": null
+  }
+ }
+}

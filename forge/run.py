@@ -6,7 +6,7 @@ Rules this file enforces:
   - one <task>.stp per task, STEP only, written to output_dir (work files go to /tmp)
   - a file exists for every task from the first minute: a bounding-box solid is
     written before any model call and replaced when a real part is ready
-  - the whole run stays inside the wall-clock budget (20 min limit; default 17 min)
+  - the whole run stays inside the wall-clock budget (1 hour limit; default 50 min)
 """
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def make_agent(llm=None) -> Agent:
 
 def run_all(input_dir: Path, output_dir: Path, agent: Agent | None = None, only: list[str] | None = None,
             work_dir: Path | None = None) -> list[dict]:
-    budget = float(os.environ.get("FORGE_BUDGET_S", "1020"))
+    budget = float(os.environ.get("FORGE_BUDGET_S", "3000"))
     deadline = time.monotonic() + budget
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

@@ -1,7 +1,7 @@
 # Track A — Ship
 
 **In plain words:** you make sure our agent runs the way the organisers will run it,
-inside 20 minutes, and you own the only number that counts: the leaderboard. You serve
+inside one hour, and you own the only number that counts: the leaderboard. You serve
 the model, build the image, submit, and tell the other two what the leaderboard said.
 You will have the numbers, so you lead the three slides.
 
@@ -45,7 +45,7 @@ flowchart LR
 4. **Docker image details.** Our `Dockerfile` installs the system libraries CadQuery
    needs and has run as non-root on arm64. Still to check: the `linux/amd64` build that
    CI pushes, with the exact `docker run --user` command from the organisers' README.
-5. **Fit in 20 minutes.** Measure where time goes. Levers: `FORGE_WORKERS`,
+5. **Fit in one hour.** Measure where time goes. Levers: `FORGE_WORKERS`,
    `FORGE_CANDIDATES`, `FORGE_ROUNDS`, image resolution, `max_tokens`, vLLM batching.
    Spend more candidates on complex parts and fewer on simple ones.
 6. **Reproducibility.** After freeze the organisers re-run our image on the practice
@@ -84,3 +84,8 @@ principal-axis alignment, Euler characteristic and genus of a closed surface.
 ## Lab notes
 
 Append one line per experiment: date, idea, number before → after, kept or dropped.
+
+- 11 Nov: boxes only → leaderboard 0.320. Kept as the floor.
+- 11 Nov: Qwen3.8-27B on vLLM with speculative decoding (`scripts/serve_vllm.sh`): 26 → 71 tokens/s per request. Kept.
+- 11 Nov: default (maximum) thinking: plan call used 16,000 tokens and wrote nothing. Medium: 316 s. Off: 186 s. Use off or low for everything except perhaps the plan.
+- 11 Nov: 27 parallel requests with 32,000-token replies saturate the card; calls pass the 15-minute timeout. Use fewer candidates and a smaller token limit.

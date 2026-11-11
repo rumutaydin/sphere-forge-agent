@@ -35,10 +35,45 @@ there is no excuse to lose these points.
 
 ## Our runs
 
-| Run | Cases | Self-score | Local score | Leaderboard | Notes |
+| Run (11 Nov) | Parts built | Self-score mean | Leaderboard | Notes |
+|---|---|---|---|---|
+| bounding boxes only | 0 of 9 | — | **0.320** | commit `dcd0709`; matches the organisers' box median |
+| base agent, Qwen3.8-27B, medium thinking | 3 of 9 | 0.315 | not submitted | 32 min; six parts lost to replies cut off by the token limit |
+| `c/facts-driven`, same model | 4 of 9 | 0.418 | not submitted | 69 min (over the limit); three more parts built but were discarded by a timeout bug |
+| hand-picked best candidate per part from that run | 7 of 9 | 0.724 | **0.658** | not reproducible by one run; measurement only |
+
+In the self-score mean a fallback box counts as 0, although it earns 0.2–0.4 on the
+leaderboard. Compare self-scores per part, not by the mean.
+
+### Per part: self-score against the leaderboard (hand-picked set)
+
+| Part | Tier | Box | Self-score | Leaderboard | Shape points earned (of 0.60) |
 |---|---|---|---|---|---|
-| fallback boxes only | 9 practice | — | — | **not submitted yet** | expected about 0.3 |
-| base agent | 9 practice | **not run yet** | — | | needs the model endpoint |
+| 1 | simple | 0.332 | 0.989 | 0.862 | 0.46 |
+| 2 | simple | 0.272 | 0.991 | 0.879 | 0.48 |
+| 3 | simple | 0.413 | 1.000 | 0.997 | 0.60 |
+| 4 | medium | 0.361 | 0.894 | 0.731 | 0.33 |
+| 5 | medium | 0.432 | 0.980 | 0.709 | 0.32 |
+| 6 | medium | 0.298 | 0.783 | 0.633 | 0.23 |
+| 7 | complex | 0.216 | none built | 0.216 | — |
+| 8 | complex | 0.342 | 0.880 | 0.687 | 0.29 |
+| 9 | complex | 0.211 | none built | 0.211 | — |
+
+"Shape points" = leaderboard minus the dimension and hole points our exact check gives.
+Readings:
+
+- Dimensions and holes (0.40) are essentially solved on every part that builds.
+- The self-score reads 0.00–0.27 too high, and all of the gap is shape. Part 5 has total
+  volume ×1.00 and still earns half the shape points: the right amount of material in
+  the wrong place. The self-score cannot see that.
+- Two parts that do not build cost about 0.10 of the mean.
+
+The scored STEP files and the programs that built them are in `bench/calibration/`, with
+the leaderboard number per part. Use them to test any new shape check: a good check
+ranks these parts the way the leaderboard does.
+
+Other teams on 11 Nov evening: one at 0.921 (probably a hosted frontier model), several
+around 0.8 with open models.
 
 Routine runs file themselves: `uv run python -m forge eval --tag <track>-<idea>` writes
 `results/<time>-<tag>.json`, and `uv run python -m forge board` prints the table. After a

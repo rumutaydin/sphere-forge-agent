@@ -9,6 +9,9 @@ the score inside one track without breaking the other two.
 
 ## Before you write anything
 
+0. Read `docs/HANDOFF.md` (current state, measurements, how to start the model server)
+   and `docs/PLAN.md` (what to do next, in order). They replace any chat history.
+
 1. Ask the human which track they are on (A, B or C) if they have not said.
 2. Read `docs/ARCHITECTURE.md`, then that track's brief in `docs/tracks/`. The brief has
    the owned paths, the target numbers, a ranked backlog and search terms.
@@ -56,7 +59,8 @@ hint for the rest. Say which one you are quoting.
 - **Never scale or mirror a finished part** to make a check pass.
 - **Do not tune to the nine practice parts.** The final ranking uses nine different parts.
 - **Do not invent scores.** If you could not run the eval, say that.
-- **The whole run must finish in 20 minutes** on the organisers' machine. Report the
+- **The whole run must finish in 1 hour** on the organisers' machine (20 minutes is only
+  the wait between two leaderboard submissions). Report the
   wall-clock of any change that adds model calls.
 - **All settings are environment variables** frozen in the image (`OPENAI_*`, `FORGE_*`).
   No secrets in the repo; `*.env` files are ignored by git.

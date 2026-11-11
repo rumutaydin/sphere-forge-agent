@@ -21,7 +21,7 @@ flowchart LR
         V["images/view_0..7.png<br/>8 orthographic views"]
         C["context.png<br/>optional"]
     end
-    IN --> AG["our image:<br/>python scripts/main.py<br/>20 minutes for all parts"]
+    IN --> AG["our image:<br/>python scripts/main.py<br/>1 hour for all parts"]
     AG <--> EP[["OpenAI-compatible endpoint<br/>our model on Brev"]]
     AG --> OUT["artifacts/outputs/test_case_n.stp<br/>one solid, mm"]
     OUT --> SC["hidden scorer:<br/>0.30 volume + 0.30 surface<br/>+ 0.20 dimensions + 0.20 holes"]
@@ -90,11 +90,11 @@ and still returns the fallback block. Keep it thin.
 `scripts/main.py --input_dir --output_dir` is the entry point their container calls.
 `run_all` writes a bounding-box `.stp` for every task before any model call, then solves
 tasks in parallel and overwrites each file when a real part is ready. It keeps the whole
-run inside a time budget (default 17 of the 20 minutes).
+run inside a time budget (default 50 of the 60 minutes).
 
 Settings, all environment variables so they freeze with the image: `OPENAI_BASE_URL`,
 `OPENAI_API_KEY`, `OPENAI_MODEL`, `FORGE_CANDIDATES` (3), `FORGE_ROUNDS` (2),
-`FORGE_WORKERS` (3 tasks at once), `FORGE_BUDGET_S` (1020), `FORGE_MAX_TOKENS` (8000).
+`FORGE_WORKERS` (3 tasks at once), `FORGE_BUDGET_S` (3000), `FORGE_MAX_TOKENS` (8000).
 
 ### `forge/llm.py` — model access (Track A)
 

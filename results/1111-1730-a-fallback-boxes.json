@@ -1,0 +1,10 @@
+{
+ "inputs": "artifacts/inputs",
+ "n_cases": 9,
+ "commit": "dcd0709",
+ "note": "bounding-box fallback for every part, no model",
+ "mean_self_score": 0.0,
+ "mean_score": null,
+ "leaderboard": 0.320,
+ "leaderboard_cases": {"test_case_1": 0.332, "test_case_2": 0.272, "test_case_3": 0.413, "test_case_4": 0.361, "test_case_5": 0.432, "test_case_6": 0.298, "test_case_7": 0.216, "test_case_8": 0.342, "test_case_9": 0.211}
+}

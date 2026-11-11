@@ -1,0 +1,44 @@
+{
+ "inputs": "artifacts/inputs",
+ "n_cases": 9,
+ "mean_self_score": 0.4180852444496191,
+ "mean_score": null,
+ "cases": {
+  "test_case_1": {
+   "self_score": 0.9886546336919275,
+   "chosen": 1
+  },
+  "test_case_2": {
+   "self_score": 0.9913384324561914,
+   "chosen": 1
+  },
+  "test_case_3": {
+   "self_score": 0.9999998461549782,
+   "chosen": 0
+  },
+  "test_case_4": {
+   "self_score": 0.0,
+   "chosen": "fallback box"
+  },
+  "test_case_5": {
+   "self_score": 0.0,
+   "chosen": "fallback box"
+  },
+  "test_case_6": {
+   "self_score": 0.7827742877434749,
+   "chosen": 1
+  },
+  "test_case_7": {
+   "self_score": 0.0,
+   "chosen": "fallback box"
+  },
+  "test_case_8": {
+   "self_score": 0.0,
+   "chosen": "fallback box"
+  },
+  "test_case_9": {
+   "self_score": 0.0,
+   "chosen": "fallback box"
+  }
+ }
+}

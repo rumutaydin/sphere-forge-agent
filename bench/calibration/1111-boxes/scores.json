@@ -1,0 +1,33 @@
+{
+ "what": "bounding box of each practice part",
+ "leaderboard_mean": 0.32,
+ "cases": {
+  "test_case_1": {
+   "leaderboard": 0.332
+  },
+  "test_case_2": {
+   "leaderboard": 0.272
+  },
+  "test_case_3": {
+   "leaderboard": 0.413
+  },
+  "test_case_4": {
+   "leaderboard": 0.361
+  },
+  "test_case_5": {
+   "leaderboard": 0.432
+  },
+  "test_case_6": {
+   "leaderboard": 0.298
+  },
+  "test_case_7": {
+   "leaderboard": 0.216
+  },
+  "test_case_8": {
+   "leaderboard": 0.342
+  },
+  "test_case_9": {
+   "leaderboard": 0.211
+  }
+ }
+}

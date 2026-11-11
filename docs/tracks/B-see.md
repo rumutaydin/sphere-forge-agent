@@ -90,3 +90,5 @@ synthesis, render-and-compare, differentiable rendering.
 ## Lab notes
 
 Append one line per experiment: date, idea, number before → after, kept or dropped.
+
+- 11 Nov: self-score vs leaderboard on seven built parts: gap 0.00–0.27, all in shape. Silhouette check is now the top item; calibration files in `bench/calibration/`.

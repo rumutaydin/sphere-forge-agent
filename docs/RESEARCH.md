@@ -11,7 +11,7 @@ mindmap
   root((Brief + views to STEP))
     Ship
       Which open model writes CAD code best
-      Nine parts in twenty minutes
+      Nine parts in one hour
       Reproducible re-run
       Local scorer vs leaderboard
     See
@@ -31,19 +31,35 @@ mindmap
       Complex free-form parts
 ```
 
-## Open questions, ranked by expected payoff
+## Open questions, ranked by expected payoff (updated 11 Nov, 23:00)
+
+Numbers behind this ranking are in [SCOREBOARD.md](SCOREBOARD.md#our-runs); the work
+order is in [PLAN.md](PLAN.md).
 
 | # | Question | Track | Why it matters | Status |
 |---|---|---|---|---|
-| 1 | What does the base agent score on the leaderboard? | A | nothing else is measurable before this | not submitted |
-| 2 | Which servable model is best at this, within 20 minutes? | A | the model is the largest single lever | open |
-| 3 | Can we hit dimensions and hole count exactly on every part? | C | 40% of the score, and we are told the answers | open |
-| 4 | Does silhouette comparison catch wrong shapes that volume and area miss? | B | 60% of the score has no exact check yet | not built |
-| 5 | How good is a visual-hull solid as a fallback? | B | lifts the floor on parts the agent cannot model | not built |
-| 6 | How well does the self-score predict the leaderboard? | B + A | selection and the critic both rely on it | needs submissions |
-| 7 | How far can a program get on parts with 300–600 faces? | C | a third of the score is the complex tier | open |
-| 8 | Do generated holes from the facts inventory beat model-written holes? | C | removes the most common counting mistake | open |
-| 9 | How repeatable is one run? | A | the organisers compare a re-run with our submission | open |
+| 1 | Can one run build all nine parts inside an hour, with no part lost to a timeout? | A + shared | today's 0.658 is hand-picked; the real run wrote 4 of 9 and took 69 min | **next** |
+| 2 | Does a silhouette check against the eight views predict the leaderboard's shape points? | B | 0.60 of the score has no check; self-score reads up to 0.27 too high | **next**, calibration data ready |
+| 3 | What makes parts 7 and 9 (complex tier) fail to build at all? | C | two boxes cost about 0.10 of the mean | open |
+| 4 | Where is the misplaced material on parts 4, 5, 6, 8? | C + B | 0.23–0.33 of 0.60 shape points on each | open; look at the pictures first |
+| 5 | Does fitting to total volume help or hide errors? | C | part 5: volume ×1.00, shape half right | open; fit only after shape is checked |
+| 6 | Is a quantised model (FP8) faster with no loss? | A | more parallel requests, shorter calls | untested |
+| 7 | How repeatable is one run? | A | the organisers compare a re-run with our submission | open |
+| 8 | How good is a visual-hull solid as a fallback? | B | lifts the floor on parts the agent cannot model | not built |
+
+Answered on 11 Nov:
+
+- **Which model?** Qwen3.8-27B (open, vision, Apache 2.0) serves on one 96 GB card and
+  builds 7 of 9 practice parts. Not compared with another model yet.
+- **Dimensions and hole count exactly?** Yes on every part that builds, once the bores
+  are cut from `facts.json` by plain code.
+- **Is the brief regular?** Yes: all nine have the same sections (type, envelope,
+  overall shape, features, edges). Every bore is fully specified in both the brief and
+  the facts. Simple parts can be rebuilt from text alone; complex parts leave body
+  dimensions unstated (wall thickness, bank depth), which the views and the known
+  volume have to supply.
+- **Self-score vs leaderboard?** Good for dimensions and holes, 0.00–0.27 too high
+  overall; see the scoreboard.
 
 ## Glossary
 

@@ -1,0 +1,46 @@
+{
+ "inputs": "artifacts/inputs",
+ "n_cases": 9,
+ "note": "hand-picked best candidate per part from runs/qwen-facts2 (Qwen3.8-27B, branch c/facts-driven); 7 and 9 are the box fallback; PR #4",
+ "mean_self_score": 0.7241111111111111,
+ "mean_score": null,
+ "leaderboard": 0.658,
+ "cases": {
+  "test_case_1": {
+   "self_score": 0.989,
+   "leaderboard": 0.862
+  },
+  "test_case_2": {
+   "self_score": 0.991,
+   "leaderboard": 0.879
+  },
+  "test_case_3": {
+   "self_score": 1.0,
+   "leaderboard": 0.997
+  },
+  "test_case_4": {
+   "self_score": 0.894,
+   "leaderboard": 0.731
+  },
+  "test_case_5": {
+   "self_score": 0.98,
+   "leaderboard": 0.709
+  },
+  "test_case_6": {
+   "self_score": 0.783,
+   "leaderboard": 0.633
+  },
+  "test_case_7": {
+   "self_score": 0,
+   "leaderboard": 0.216
+  },
+  "test_case_8": {
+   "self_score": 0.88,
+   "leaderboard": 0.687
+  },
+  "test_case_9": {
+   "self_score": 0,
+   "leaderboard": 0.211
+  }
+ }
+}
