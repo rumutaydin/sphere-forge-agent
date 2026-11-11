@@ -10,21 +10,14 @@ permissions:
 
 jobs:
   test:
+    # Tests run inside our own image: that also proves the image builds, and avoids
+    # installing CAD system libraries on the runner.
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      # The CAD kernel needs these system libraries at import time
-      - run: sudo apt-get update && sudo apt-get install -y -o Acquire::Retries=5 libgl1 libglu1-mesa libxrender1
-      - uses: astral-sh/setup-uv@v10.3.3
-      - run: uv run pytest -q
-
-  build:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - run: docker build .
+      - run: docker build -t forge-ci .
+      - run: docker run --rm forge-ci uv run pytest -q
 
   submit:
     # Every push to main is a submission: image to the organisers' registry, outputs to their bucket.
