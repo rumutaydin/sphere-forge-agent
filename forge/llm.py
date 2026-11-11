@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import io
 import os
+import sys
 from pathlib import Path
 
 from PIL import Image
@@ -38,12 +39,22 @@ class LLM:
 class OpenAICompatLLM(LLM):
     """Any OpenAI-compatible chat endpoint. Reads OPENAI_BASE_URL / OPENAI_API_KEY / OPENAI_MODEL."""
 
-    def __init__(self, model: str | None = None, timeout: float = 300.0):
+    def __init__(self, model: str | None = None, timeout: float | None = None):
         from openai import OpenAI
 
+        timeout = timeout or float(os.environ.get("FORGE_LLM_TIMEOUT_S", "900"))
         self.client = OpenAI(timeout=timeout, max_retries=1)
         self.model = model or os.environ["OPENAI_MODEL"]
         self.max_tokens = int(os.environ.get("FORGE_MAX_TOKENS", "8000"))
+        # Thinking models: FORGE_REASONING_EFFORT (e.g. low / medium) is passed through as
+        # reasoning_effort; FORGE_THINKING=off disables thinking via the chat template
+        # (vLLM / Qwen convention). Unset means the server's default.
+        self.extra: dict = {}
+        effort = os.environ.get("FORGE_REASONING_EFFORT", "").strip()
+        if effort:
+            self.extra["reasoning_effort"] = effort
+        if os.environ.get("FORGE_THINKING", "").strip().lower() in ("off", "0", "false", "no"):
+            self.extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
 
     def complete(self, system: str, content: list[dict]) -> str:
         parts = []
@@ -57,8 +68,13 @@ class OpenAICompatLLM(LLM):
             model=self.model,
             max_tokens=self.max_tokens,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": parts}],
+            **self.extra,
         )
-        return reply.choices[0].message.content or ""
+        choice = reply.choices[0]
+        if choice.finish_reason == "length":
+            print(f"llm: reply cut off at FORGE_MAX_TOKENS={self.max_tokens} "
+                  f"({len(choice.message.content or '')} chars of answer)", file=sys.stderr, flush=True)
+        return choice.message.content or ""
 
 
 class ScriptedLLM(LLM):
