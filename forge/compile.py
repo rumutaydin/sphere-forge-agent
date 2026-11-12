@@ -608,6 +608,37 @@ def revolve_body(task, axis: str | None = None, tol_px: float = 0.5):
     return cq.Workplane("XY").newObject([_largest_solid(shape)])
 
 
+def turned_profile(task, axis: str, tol_mm: float = 0.6) -> list[tuple[float, float]]:
+    """The outline of a turned part measured from a side view: (position along the axis, radius)
+    breakpoints in mm, simplified. Handed to the model as a measurement that overrides the brief."""
+    size = box_size(task.facts)
+    stem = {"Y": "view_4_top", "X": "view_0_front", "Z": "view_0_front"}[axis]
+    mask = pair_mask(task, stem)
+    cam = Camera(stem, size, mask.shape[0])
+    k = "XYZ".index(axis)
+    axis_vec = np.eye(3)[k]
+    horizontal = abs(axis_vec @ cam.r) > abs(axis_vec @ cam.u)
+    m = mask.T if horizontal else mask          # rows now run along the axis
+    pts = []
+    for i in range(m.shape[0]):
+        cols = np.nonzero(m[i])[0]
+        if len(cols) == 0:
+            continue
+        width_mm = (cols[-1] - cols[0] + 1) / cam.scale
+        # pixel row/column -> position along the axis in the facts frame
+        px = np.array([[cols[0], i]]) if not horizontal else np.array([[i, cols[0]]])
+        mm = cam.plane_mm(px.astype(float))[0]
+        pos = float(mm[0] * (axis_vec @ cam.r) + mm[1] * (axis_vec @ cam.u))
+        pts.append((pos, width_mm / 2))
+    if len(pts) < 2:
+        return []
+    arr = np.array(sorted(pts))
+    from .vision import _simplify
+
+    simp = _simplify(arr, tol_mm)
+    return [(round(float(a), 1), round(float(b), 1)) for a, b in simp]
+
+
 def body_sources(task) -> list[tuple[str, object]]:
     """Every no-model body we can make for this task, cheapest first. Holes are NOT cut yet."""
     return list(iter_body_sources(task))
@@ -857,6 +888,7 @@ def compile_part(task, out_dir: str | Path, sources=None, publish: str | Path | 
             if axis:
                 rows[0]["check"]["turned_axis"] = axis
                 rows[0]["check"]["rotation_order"] = rotation_order(task, AXIS_VIEW[axis])
+                rows[0]["check"]["turned_profile"] = turned_profile(task, axis)
         except Exception as exc:
             print(f"{task.name}: rotation order failed: {type(exc).__name__}: {exc}", flush=True)
     if rows and task.views:

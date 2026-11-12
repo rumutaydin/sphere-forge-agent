@@ -266,9 +266,16 @@ def floor_note(floor: dict | None, facts: dict) -> str:
              f"(x{over:.2f}), surface x{area:.2f} of the real part's"]
     if c.get("turned_axis"):
         n = c.get("rotation_order", 1)
-        lines.append(f"- measured from the views: the part is turned about a {c['turned_axis']}-axis"
-                     + (f", and its axis view repeats exactly {n} times around that axis (fins, pleats, spokes, "
-                        f"lobes): use {n}, do not count them yourself" if n and n > 1 else ""))
+        ax = c["turned_axis"]
+        lines.append(f"MEASURED FROM THE VIEWS (exact; where the brief disagrees, the brief is wrong):")
+        lines.append(f"- the part is turned about a {ax}-axis through the centre of the bounding box")
+        if n and n > 1:
+            lines.append(f"- its axis view repeats exactly {n} times around that axis (fins, pleats, spokes, lobes). "
+                         f"Use count={n}, whatever the brief says about the number or the symmetry.")
+        if c.get("turned_profile"):
+            prof = ", ".join(f"({a:g}, {b:g})" for a, b in c["turned_profile"])
+            lines.append(f"- outer outline as ({ax} position, largest radius) breakpoints, mm: {prof}. Take every height, "
+                         "thickness and diameter of the turned masses from this outline, not from the brief.")
     if over > 1.05:
         lines.append(f"- so {(over - 1) * target:.0f} mm^3 inside the outline is EMPTY in the real part "
                      f"({1 - 1 / over:.0%} of the outline solid). No outline shows where; the shading and the lines inside "
