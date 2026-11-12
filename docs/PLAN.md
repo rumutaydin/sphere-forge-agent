@@ -1,3 +1,60 @@
+# Plan v5, Thu 12 Nov, 21:45 (supersedes v4 below; v4 kept for its task notes)
+
+## The leaderboard says our architecture is capped
+
+| Rank | Team | Mean | 4 | 5 | 6 | 7 | 9 |
+|---|---|---|---|---|---|---|---|
+| 1 | team-a | 0.988 | 0.998 | 0.972 | 0.999 | 0.945 | 0.982 |
+| 2 | team-f | 0.979 | 0.999 | 0.963 | 0.999 | 0.883 | 0.988 |
+| 3 | team-b | 0.976 | 0.999 | 0.981 | 1.000 | 0.849 | 0.972 |
+| **4** | team-e | **0.928** | 0.966 | 0.896 | 0.927 | 0.777 | 0.857 |
+| 5 | team-d | 0.895 | 0.963 | 0.883 | 0.707 | 0.774 | 0.831 |
+| 7 | **us** (`14`) | 0.877 | 0.913 | 0.838 | 0.685 | 0.755 | 0.831 |
+
+Three teams score 0.999-1.000 on part 6 (16 V-grooves, 72 spline faces). A visual hull cannot
+do that; an exact parametric program can. Brief 6 gives every dimension except the fin count
+(top view: 16) and the groove depth, and facts.json gives volume, surface area, face count and
+face types, which pin the rest. **The top teams write the whole part as a program and check it
+against the facts; we trace a hull and let the model add a body that is then trimmed by the
+hull.** Small tuning of the hull path cannot reach 0.93 (top 4).
+
+What limits our model pass today (`forge/stages/build.py`): nine helper solids only, no fillets
+or chamfers ("leave out edge rounds"), "ten to thirty solids", output trimmed by the pixel hull
+(faceted surfaces), selected by an estimate that cannot see inside the outline, thinking off,
+3 calls per part, about 8 of the 60 minutes used.
+
+## V1. Exact-program path (Track C + shared; the one big change)
+
+A second kind of model candidate, in parallel with the body candidates, never trimmed by the hull:
+
+1. **Prompt:** the whole brief, the facts, the eight views. Write the complete part in CadQuery
+   (raw cadquery allowed, plus the helpers), world frame (bbox min at origin), every feature of
+   the brief including bores, fillets and chamfers, with every free dimension as a named
+   variable at the top. Thinking on (medium, 16k).
+2. **Objective report** after each run, from facts and views only: bbox per axis, volume ratio,
+   surface-area ratio, through-hole count, face count and face-type histogram, silhouette IoU per
+   view and *where* each view differs (mm ranges of extra/missing material).
+3. **Rounds:** the report goes back to the model; up to 3 revisions per candidate, the best
+   version kept.
+4. **Acceptance (strict, objective):** replaces the floor only if bbox within 1%, holes exact,
+   volume within 4%, area within 8%, worst-view silhouette IoU high (calibrate the bar on the
+   answers in `bench/cases`: the answer must pass, the hull must not). Otherwise the floor stays,
+   so the path can only lose where the bar is wrong.
+5. **Budget:** pass 1 ~8 min, then this path with the rest of the hour; report wall-clock.
+
+Number: leaderboard of parts 4, 5, 6, 9 (top teams 0.96-1.00, we 0.68-0.91). Target mean >= 0.93.
+
+## V2. Fit the free parameters to the facts (after V1 runs)
+
+The model declares `PARAMS = {name: (lo, hi)}` for the dimensions the brief does not give;
+code searches them (coordinate descent, about 20 runs) to match volume and area, then the
+silhouettes. Part 6's groove depth is exactly this.
+
+## Kept from v4
+
+Freeze checklist (T10 and "Do not forget before the freeze") still applies. The 27B on
+`clinical-ivory-barnacle` stays the model.
+
 # Plan v4, Thu 12 Nov, midday
 
 Replaces plan v3. State: [HANDOFF.md](HANDOFF.md). Numbers and the twelve lessons from
