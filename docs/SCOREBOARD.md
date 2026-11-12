@@ -59,7 +59,7 @@ are the estimate per practice part.
 | `01-no-model` | 0.773 | not submitted | 0.88 | 0.86 | 0.92 | 0.83 | 0.80 | 0.49 | 0.61 | 0.87 | 0.70 | 9 of 9 |
 | `02-two-pass-qwen-nothink` | 0.779 | not submitted | 0.88 | 0.86 | 0.92 | 0.88 | 0.80 | 0.49 | 0.61 | 0.87 | 0.70 | 9 of 9 |
 | `03-two-pass-qwen-think-cuts` | 0.807 | not submitted | 0.90 | 0.91 | 0.92 | 0.88 | 0.81 | 0.62 | 0.61 | 0.89 | 0.73 | 9 of 9 |
-| `04-no-model-faces` | 0.794 | not submitted | 0.91 | 0.86 | 0.92 | 0.83 | 0.85 | 0.49 | 0.61 | 0.87 | 0.80 | 9 of 9 |
+| `04-no-model-faces` | 0.793 | not submitted | 0.91 | 0.86 | 0.92 | 0.83 | 0.85 | 0.49 | 0.61 | 0.87 | 0.80 | 9 of 9 |
 | `05-faces-qwen-think-cuts` | 0.814 | not submitted | 0.91 | 0.88 | 0.92 | 0.88 | 0.85 | 0.56 | 0.65 | 0.87 | 0.80 | 9 of 9 |
 
 - `00-boxes`: Bounding boxes (leaderboard 0.320 on 11 Nov)
@@ -67,7 +67,7 @@ are the estimate per practice part.
 - `01-no-model`: Pass 1 only, no model call: visual hull or revolve from the eight views, bores from facts.json fitted to the through-hole count. 8 min wall clock.
 - `02-two-pass-qwen-nothink`: Pass 1 + model body pass, Qwen3.8-27B, thinking off, 3 bodies per part. Model won only on parts 4 and 6. 632 s wall clock.
 - `03-two-pass-qwen-think-cuts`: Pass 1 + model pass with thinking on (medium, 16k tokens), 2 bodies + 1 cut list per part. Model won on 1,2,4,5,6,8,9. 1691 s wall clock.
-- `04-no-model-faces`: Pass 1 only, no model call: as 01 plus the space in front of every face a bore starts from removed (forge/layers.py). 6 min wall clock.
+- `04-no-model-faces`: Pass 1 only, no model call: as 01 plus the space in front of every face a bore starts from removed (forge/layers.py). Files made inside the Docker image by the final code, as non-root: 52 s. Repeatable exactly.
 - `05-faces-qwen-think-cuts`: As 04 plus the model pass with thinking on (medium, 16k tokens), 2 bodies + 1 cut list per part. Model won on 2,4,5,6,7,8 (cut lists on 5,6,7,8). 1275 s wall clock.
 
 How far to trust the estimate:

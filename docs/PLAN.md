@@ -73,7 +73,7 @@ it reproduces the two values we know to within 0.01). None of 01–05 has been s
 | Order | Approach | Estimate | What the leaderboard value will tell us |
 |---|---|---|---|
 | 1 | `01-no-model` | 0.773 | what hull + bores alone are worth; calibrates the estimate on hulls |
-| 2 | `04-no-model-faces` | 0.794 | whether the face carving is a real gain (parts 1, 5, 9) |
+| 2 | `04-no-model-faces` | 0.793 | whether the face carving is a real gain (parts 1, 5, 9) |
 | 3 | `03-two-pass-qwen-think-cuts` | 0.807 | whether the model's bodies and cut lists help or hurt on 2, 4, 6, 8 |
 | 4 | `05-faces-qwen-think-cuts` | 0.814 | the best of both; our candidate for the final configuration |
 

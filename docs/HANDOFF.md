@@ -43,7 +43,7 @@ sloped pockets (parts 6 and 7).
 2. **Hull plus bores, no model:** estimate 0.773 (boxes 0.327, yesterday's set 0.652).
    Dimensions and holes are 1.00 on all nine. Volume is too high by 0–8% on parts 1, 2,
    3, 8; 17–22% on 4 and 5; ×1.5 to ×3.2 on 6, 7, 9.
-3. **Face carving:** estimate 0.794. Parts 1 (volume ×1.06 → ×1.00), 5 (×1.22 → ×1.13)
+3. **Face carving:** estimate 0.793. Parts 1 (volume ×1.06 → ×1.00), 5 (×1.22 → ×1.13)
    and 9 (×1.54 → ×1.23).
 4. **Model pass, Qwen3.8-27B, thinking off:** 3 bodies per part, 10.5 min in total. The
    model's body beat the no-model part on 2 of 9 parts (4 and 6). Many bodies had the
