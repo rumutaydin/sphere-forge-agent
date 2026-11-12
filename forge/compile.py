@@ -335,6 +335,122 @@ def _largest_solid(shape):
     return max(solids, key=lambda s: s.Volume())
 
 
+# --- thin-walled shells --------------------------------------------------------------------
+
+def _bbox_planar_faces(shape, tol: float = 1e-3):
+    """Planar faces lying on the bounding box, largest first: candidate openings of a shell."""
+    bb = shape.BoundingBox()
+    lo, hi = (bb.xmin, bb.ymin, bb.zmin), (bb.xmax, bb.ymax, bb.zmax)
+    size = max(bb.xlen, bb.ylen, bb.zlen)
+    out = []
+    for f in shape.Faces():
+        if f.geomType() != "PLANE":
+            continue
+        fb = f.BoundingBox()
+        for i, (a, b) in enumerate(((fb.xmin, fb.xmax), (fb.ymin, fb.ymax), (fb.zmin, fb.zmax))):
+            if b - a < tol * size and (abs(a - lo[i]) < tol * size or abs(b - hi[i]) < tol * size):
+                out.append(f)
+                break
+    return sorted(out, key=lambda f: -f.Area())
+
+
+def _thick(shape, t: float, openings):
+    """The body hollowed with an inward wall of thickness t; `openings` are faces left open.
+
+    The kernel's own open-shell offset (MakeThickSolidByJoin) gives up on faceted silhouette
+    bodies, so an opening is made with booleans: the closed shell, then the inner void moved
+    out through the opening face by 1.5 t and cut. The rim keeps the wall thickness and the
+    face's outer edge, so the bounding box does not change."""
+    import cadquery as cq
+
+    closed = cq.Workplane().add(shape).shell(-t).val()
+    if not openings:
+        return closed
+    shells = sorted(closed.Shells(), key=lambda s: s.Area())
+    if len(shells) < 2:
+        raise ValueError("shell has no inner void")
+    void = cq.Solid.makeSolid(shells[0]).fix()       # the inner skin, closed into a solid
+    tool = void
+    for f in openings:
+        tool = tool.fuse(void.translate(f.normalAt(f.Center()) * (1.5 * t)))
+    out = shape.cut(tool)       # cutting the shell itself leaves loose faces; the full body does not
+    solids = out.Solids()
+    if len(solids) != 1:
+        raise ValueError(f"open shell has {len(solids)} solids")
+    return solids[0]
+
+
+def shell_bodies(body, task, t_end: float | None = None, log: list | None = None):   # FORGE_SHELL_S per variant
+    """Thin-walled versions of a silhouette body that is far too full: [(variant, cq.Workplane)].
+
+    Signature (no part numbers): the body has much more volume than the facts AND less surface.
+    Carving a solid cannot fix both; hollowing can. The wall thickness is solved from the
+    facts' volume (the thinnest wall that keeps the volume at or above the facts, so the
+    check "volume not below the facts" holds). Variants: closed (inner void), or the one or two
+    largest flat faces on the bounding box left open (a tray, a tube). The outside is the
+    silhouette body's own, so no silhouette changes. Bores are cut later, like every source."""
+    import os
+    import time
+
+    import cadquery as cq
+
+    log = log if log is not None else []
+    facts = task.facts or {}
+    tv, ta = facts.get("volume_mm3"), facts.get("surface_area_mm2")
+    shape = body.val()
+    if not tv or not ta:
+        return []
+    vr, ar = shape.Volume() / tv, shape.Area() / ta
+    v_min = float(os.environ.get("FORGE_SHELL_VOL", "1.3"))
+    a_max = float(os.environ.get("FORGE_SHELL_AREA", "1.0"))
+    if vr < v_min or ar > a_max:
+        log.append(f"no shell: volume x{vr:.2f}, surface x{ar:.2f} (needs > x{v_min}, < x{a_max})")
+        return []
+    size = max(box_size(facts))
+    planes = _bbox_planar_faces(shape)
+    per_variant_s = float(os.environ.get("FORGE_SHELL_S", "90"))     # kernel time per variant
+    out, closed_t = [], None
+    for name, ops in (("closed", []), ("open1", planes[:1]), ("open2", planes[:2])):
+        if name != "closed" and len(ops) < int(name[-1]):
+            continue
+        # an opening removes material, so an open shell needs a wall at least as thick as the
+        # closed one: its search starts there (fewer kernel runs on large bodies)
+        lo, hi, best = (closed_t if name != "closed" and closed_t else 0.0), size / 4, None
+        stop = time.monotonic() + per_variant_s
+        if t_end is not None:
+            stop = min(stop, t_end)
+        for _ in range(12):
+            if time.monotonic() > stop:
+                log.append(f"{name}: out of time")
+                break
+            if best is not None and hi - lo < 0.005 * hi:
+                break       # converged: the wall is known to half a percent
+            t = (lo + hi) / 2
+            try:
+                s = _thick(shape, t, ops)
+                ok = s.isValid() and len(s.Solids()) == 1 and s.Volume() > 0
+                v = s.Volume() if ok else -1.0
+            except Exception:
+                ok, v = False, -1.0
+            if not ok:          # kernel failure: a thinner wall is usually the failing one; try thicker
+                lo = t
+                continue
+            if v >= tv:
+                best, hi = (t, s), t
+            else:
+                lo = t
+        if best is None:
+            log.append(f"{name}: no wall fits")
+            continue
+        t, s = best
+        if name == "closed":
+            closed_t = t
+        log.append(f"{name}: wall {t:.2f} mm, volume x{s.Volume() / tv:.3f}, surface x{s.Area() / ta:.3f}")
+        if s.Volume() / tv < 1.05:     # the bisection did not converge onto the facts' volume: drop it
+            out.append((name, cq.Workplane("XY").newObject([s.Solids()[0]])))
+    return out
+
+
 # --- bodies from silhouettes -----------------------------------------------------------
 
 def _ring_wire(ring_mm: np.ndarray, cam: Camera, depth: float):
@@ -595,6 +711,21 @@ def iter_body_sources(task, t_end: float | None = None):
                 yield out[-1]
         except Exception as exc:
             print(f"{task.name}: body source hull-pockets failed: {type(exc).__name__}: {exc}", flush=True)
+    # ... and, when the hull is far too full with too little surface, hollowed into a thin-walled
+    # shell whose wall is solved from the facts' volume (shell_bodies above).
+    if hulls and os.environ.get("FORGE_SHELL", "on").lower() not in ("off", "0", "no", "false"):
+        try:
+            import time
+
+            log = []
+            shells = shell_bodies(hulls[0], task, t_end=t_end, log=log)
+            for line in log:
+                print(f"{task.name}: shell: {line}", flush=True)
+            for variant, shelled in shells:
+                out.append((f"hull-shell-{variant}", shelled))
+                yield out[-1]
+        except Exception as exc:
+            print(f"{task.name}: body source hull-shell failed: {type(exc).__name__}: {exc}", flush=True)
 
 
 # --- measure, rank, write --------------------------------------------------------------
@@ -618,6 +749,12 @@ def measure_body(body, task) -> dict | None:
     check["silhouette_iou"] = shape_s.get("mean", 0.0)
     check["estimate"] = estimate(check, shape_s)
     return {"measure": info, "check": check, "shape": shape_s, "estimate": check["estimate"]}
+
+
+def rank_key(row: dict):
+    """Best first: by estimate; an exact tie (3 decimals) goes to the surface ratio nearer 1.
+    The estimate has no surface term, and surface is 30% of the score."""
+    return (-round(row["estimate"], 3), abs(row["check"].get("area_ratio", 1.0) - 1.0))
 
 
 def estimate(check: dict, shape_s: dict) -> float:
@@ -670,10 +807,10 @@ def compile_part(task, out_dir: str | Path, sources=None, publish: str | Path | 
         cq.exporters.export(part.val(), str(step))
         row = {"name": label, "step": str(step), "estimate": m["estimate"], "check": m["check"],
                "shape": m["shape"], "volume": m["measure"]["volume"], "note": note}
-        if publish and all(row["estimate"] > r["estimate"] for r in rows):
+        if publish and all(rank_key(row) < rank_key(r) for r in rows):
             publish_file(step, publish)
         rows.append(row)
-        (out_dir / "compile.json").write_text(json.dumps(sorted(rows, key=lambda r: -r["estimate"]), indent=1))
+        (out_dir / "compile.json").write_text(json.dumps(sorted(rows, key=rank_key), indent=1))
         return row
 
     bodies = []
@@ -687,12 +824,13 @@ def compile_part(task, out_dir: str | Path, sources=None, publish: str | Path | 
         except Exception as exc:
             print(f"{task.name}: {name}+holes failed: {type(exc).__name__}: {exc}", flush=True)
     # the best silhouette body, without bores: the model stage starts from it and trims with it
-    silhouette = [r for r in sorted(rows, key=lambda r: -r["estimate"]) if not r["name"].startswith("box")]
+    # (never a hollow shell: trimming a model body with one would hollow that body too)
+    silhouette = [r for r in sorted(rows, key=rank_key) if not r["name"].startswith(("box", "hull-shell"))]
     if silhouette:
         cq.exporters.export(dict(bodies)[silhouette[0]["name"].split("+")[0]].val(), str(out_dir / "hull.step"))
     if has_holes and rows:
         # the hole-count search costs many kernel runs: only on the best body, and on a revolve
-        ranked = sorted(rows, key=lambda r: -r["estimate"])
+        ranked = sorted(rows, key=rank_key)
         todo = [ranked[0]["name"].split("+")[0]] + [n for n, _ in bodies if n == "revolve"]
         if todo[0] == "hull-pockets":
             # a pocket can swallow the mouth of a bore and spoil the search: the body it was cut
@@ -706,7 +844,7 @@ def compile_part(task, out_dir: str | Path, sources=None, publish: str | Path | 
                 add(f"{name}+holes-fit", part, note=log)
             except Exception as exc:
                 print(f"{task.name}: {name}+holes-fit failed: {type(exc).__name__}: {exc}", flush=True)
-    rows.sort(key=lambda r: -r["estimate"])
+    rows.sort(key=rank_key)
     if rows and task.views:
         # the line drawing of the best part against the strokes of the views: the model pass may
         # not replace this part with one whose inside matches the views worse (forge/pipeline.py)
