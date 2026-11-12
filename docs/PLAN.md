@@ -23,6 +23,22 @@ or chamfers ("leave out edge rounds"), "ten to thirty solids", output trimmed by
 (faceted surfaces), selected by an estimate that cannot see inside the outline, thinking off,
 3 calls per part, about 8 of the 60 minutes used.
 
+## P0 (BEFORE V1): hidden parts come WITHOUT facts.json
+
+The organisers' extended practice set (`~/Downloads/extended-practice.zip`, 20 parts with briefs,
+views and facts, no answers) says in its README: "Inputs to your pipeline: images/, context.png
+(if present) and description.md. Nothing else is available for hidden parts." Today, with no
+facts.json, `forge/run.py: pass1` returns None and the box fallback has no size: **on the hidden
+parts we would output nothing or boxes.** Fix: build facts from the brief (`**Envelope:** X x Y x Z
+mm; volume V cm^3; N through-passages` is uniform across all 29 briefs; bores from the feature
+bullets, by regex and, if the endpoint is up, one JSON extraction call). Surface area, face counts
+and face types are NOT derivable: nothing may require them. Test: practice and extended parts
+with facts.json hidden; compare parsed facts with the real ones; no-model outputs scored against
+the real facts. Number: no-model self-score with parsed facts vs with real facts.
+
+GPU budget: about $25 of credit left at 22:30; keep $5-10 for the judging run (the organisers use
+our endpoint after the freeze). Start the instance only for a finished, combined run; stop it at once.
+
 ## V1. Exact-program path (Track C + shared; the one big change)
 
 A second kind of model candidate, in parallel with the body candidates, never trimmed by the hull:
