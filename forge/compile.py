@@ -1027,6 +1027,107 @@ def revolve_body(task, axis: str | None = None, tol_px: float = 0.5):
     return cq.Workplane("XY").newObject([_largest_solid(shape)])
 
 
+def turned_profile(task, axis: str, tol_mm: float = 0.6) -> list[tuple[float, float]]:
+    """The outline of a turned part measured from a side view: (position along the axis, radius)
+    breakpoints in mm, simplified. Handed to the model as a measurement that overrides the brief."""
+    size = box_size(task.facts)
+    stem = {"Y": "view_4_top", "X": "view_0_front", "Z": "view_0_front"}[axis]
+    mask = pair_mask(task, stem)
+    cam = Camera(stem, size, mask.shape[0])
+    k = "XYZ".index(axis)
+    axis_vec = np.eye(3)[k]
+    horizontal = abs(axis_vec @ cam.r) > abs(axis_vec @ cam.u)
+    m = mask.T if horizontal else mask          # rows now run along the axis
+    pts = []
+    for i in range(m.shape[0]):
+        cols = np.nonzero(m[i])[0]
+        if len(cols) == 0:
+            continue
+        width_mm = (cols[-1] - cols[0] + 1) / cam.scale
+        # pixel row/column -> position along the axis in the facts frame
+        px = np.array([[cols[0], i]]) if not horizontal else np.array([[i, cols[0]]])
+        mm = cam.plane_mm(px.astype(float))[0]
+        pos = float(mm[0] * (axis_vec @ cam.r) + mm[1] * (axis_vec @ cam.u))
+        pts.append((pos, width_mm / 2))
+    if len(pts) < 2:
+        return []
+    arr = np.array(sorted(pts))
+    from .vision import _simplify
+
+    simp = _simplify(arr, tol_mm)
+    return [(round(float(a), 1), round(float(b), 1)) for a, b in simp]
+
+
+
+
+def partial_shells(body, task, axis: str, log: list | None = None) -> list[tuple[str, object]]:
+    """A turned part that is hollow between solid end discs (a filter element, a sealed cone):
+    the middle segment of the measured profile is hollowed, the end discs stay solid.
+
+    The cavity is the middle segment of `body` scaled toward the axis by k (cross-section x k^2),
+    so its volume is k^2 times the segment's and k comes from the facts' volume in closed form:
+    one boolean, no search. A star-shaped section scaled about its centre stays inside itself,
+    so the cavity never breaks the skin. Which segment: the longest one of the profile whose
+    radius changes or that is not at an end; the discs are what lies beyond it."""
+    import cadquery as cq
+
+    log = log if log is not None else []
+    facts = task.facts or {}
+    tv, ta = facts.get("volume_mm3"), facts.get("surface_area_mm2")
+    shape = body.val()
+    if not tv or not ta or shape.Volume() < 1.3 * tv:
+        return []
+    prof = turned_profile(task, axis)
+    if len(prof) < 3:
+        return []
+    size = box_size(facts)
+    k_ax = "XYZ".index(axis)
+    length = float(size[k_ax])
+    segs = [(prof[i][0], prof[i + 1][0], prof[i][1], prof[i + 1][1]) for i in range(len(prof) - 1)]
+    # the hollow middle runs from the first to the last tapered stretch (a cone, a pleated frustum);
+    # a part without one (a tube) uses its longest stretch. The end discs are what lies beyond.
+    taper = [g for g in segs if g[1] - g[0] >= 0.08 * length and 0.08 <= abs(g[3] - g[2]) / max(g[1] - g[0], 1e-9) <= 5]
+    if taper:
+        a, b = taper[0][0], taper[-1][1]
+    else:
+        a, b = max(segs, key=lambda g: g[1] - g[0])[:2]
+    if (b - a) < 0.3 * length or (b - a) > 0.97 * length:
+        log.append(f"no middle segment between end discs ({a:.1f}..{b:.1f} of {length:.1f})")
+        return []
+    lo = [0.0, 0.0, 0.0]
+    hi = [float(v) for v in size]
+    lo[k_ax], hi[k_ax] = a, b
+    slab = cq.Solid.makeBox(*[h - l for l, h in zip(lo, hi)], cq.Vector(*lo))
+    seg = _largest_solid(shape.intersect(slab))
+    if not isinstance(seg, cq.Solid):
+        seg = cq.Solid(seg.wrapped)
+    seg = seg.fix()
+    v_seg = seg.Volume()
+    need = shape.Volume() - tv          # material the cavity must take out
+    if v_seg <= 0 or need <= 0 or need >= 0.97 * v_seg:
+        log.append(f"cavity impossible: segment {v_seg:.0f} mm3, to remove {need:.0f} mm3")
+        return []
+    k = math.sqrt(need / v_seg)
+    c = size / 2
+    m = [[k, 0, 0, 0], [0, k, 0, 0], [0, 0, k, 0]]
+    for i in range(3):
+        if i == k_ax:
+            m[i] = [0, 0, 0, 0]
+            m[i][i] = 1.0
+        else:
+            m[i][3] = (1 - k) * c[i]
+    mat = cq.Matrix([row for row in m])
+    void = seg.transformGeometry(mat)
+    out = shape.cut(void)
+    solids = out.Solids()
+    if len(solids) != 1 or not solids[0].isValid():
+        log.append(f"cut gave {len(solids)} solids")
+        return []
+    s = solids[0]
+    log.append(f"segment {a:.1f}..{b:.1f}, scale {k:.3f}, volume x{s.Volume() / tv:.3f}, surface x{s.Area() / ta:.3f}")
+    return [("partshell", cq.Workplane("XY").newObject([s]))]
+
+
 def body_sources(task) -> list[tuple[str, object]]:
     """Every no-model body we can make for this task, cheapest first. Holes are NOT cut yet."""
     return list(iter_body_sources(task))
@@ -1085,6 +1186,19 @@ def iter_body_sources(task, t_end: float | None = None):
             yield out[-1]
         for line in log:
             print(f"{task.name}: star: {line}", flush=True)
+    # ... and the turned bodies hollowed between solid end discs (partial_shells above).
+    if turned and os.environ.get("FORGE_PARTSHELL", "off").lower() in ("on", "1", "yes", "true"):
+        axis_t = revolve_axis(task)
+        for base in [n for n, _ in out if n.startswith(("revolve-star", "revolve")) and "shell" not in n]:
+            try:
+                log = []
+                for variant, hollow in partial_shells(dict(out)[base], task, axis_t, log=log):
+                    out.append((f"{base}-{variant}", hollow))
+                    yield out[-1]
+                for line in log:
+                    print(f"{task.name}: partshell {base}: {line}", flush=True)
+            except Exception as exc:
+                print(f"{task.name}: body source {base}-partshell failed: {type(exc).__name__}: {exc}", flush=True)
     # The tightest hull again, with the space in front of every face a bore starts from removed
     # (forge/layers.py): pockets and recessed faces that no outline shows.
     hulls = [b for n, b in out if n == "hull5"] or [b for n, b in out if n == "hull3"]
@@ -1173,6 +1287,7 @@ def measure_body(body, task) -> dict | None:
     check = self_check(info, task.facts)
     shape_s = shape_score(mesh, task) if task.views else {"mean": 0.0, "iou_per_view": {}}
     check["silhouette_iou"] = shape_s.get("mean", 0.0)
+    check["faces"] = dict(info.get("faces") or {})      # face inventory, against facts["face_types"]
     check["estimate"] = estimate(check, shape_s)
     return {"measure": info, "check": check, "shape": shape_s, "estimate": check["estimate"]}
 
