@@ -1,7 +1,7 @@
 {
  "what": "As 08, with the through-hole search applied to the model bodies that won on parts 5 and 7 (now part of the pipeline: a model body whose hole count is off gets the search). Parts 5 and 7 were re-finished offline from the run's own programs; the rest is run 08 unchanged.",
  "n_cases": 9,
- "leaderboard": null,
+ "leaderboard": 0.863,
  "mean_estimate": 0.8339,
  "holes_right": 9,
  "cases": {
@@ -13,7 +13,8 @@
    "holes": 1.0,
    "volume_ratio": 0.999,
    "area_ratio": 1.001,
-   "silhouette_iou": 0.9939
+   "silhouette_iou": 0.9939,
+   "leaderboard": 0.993
   },
   "test_case_2": {
    "valid": true,
@@ -23,7 +24,8 @@
    "holes": 1.0,
    "volume_ratio": 0.993,
    "area_ratio": 1.325,
-   "silhouette_iou": 0.9886
+   "silhouette_iou": 0.9886,
+   "leaderboard": 0.921
   },
   "test_case_3": {
    "valid": true,
@@ -33,7 +35,8 @@
    "holes": 1.0,
    "volume_ratio": 0.996,
    "area_ratio": 0.997,
-   "silhouette_iou": 0.9981
+   "silhouette_iou": 0.9981,
+   "leaderboard": 0.997
   },
   "test_case_4": {
    "valid": true,
@@ -43,7 +46,8 @@
    "holes": 1.0,
    "volume_ratio": 1.043,
    "area_ratio": 1.02,
-   "silhouette_iou": 0.9841
+   "silhouette_iou": 0.9841,
+   "leaderboard": 0.914
   },
   "test_case_5": {
    "valid": true,
@@ -53,7 +57,8 @@
    "holes": 1.0,
    "volume_ratio": 1.001,
    "area_ratio": 1.023,
-   "silhouette_iou": 0.994
+   "silhouette_iou": 0.994,
+   "leaderboard": 0.857
   },
   "test_case_6": {
    "valid": true,
@@ -63,7 +68,8 @@
    "holes": 1.0,
    "volume_ratio": 1.834,
    "area_ratio": 0.674,
-   "silhouette_iou": 0.917
+   "silhouette_iou": 0.917,
+   "leaderboard": 0.644
   },
   "test_case_7": {
    "valid": true,
@@ -73,7 +79,8 @@
    "holes": 1.0,
    "volume_ratio": 1.561,
    "area_ratio": 0.899,
-   "silhouette_iou": 0.9353
+   "silhouette_iou": 0.9353,
+   "leaderboard": 0.68
   },
   "test_case_8": {
    "valid": true,
@@ -83,7 +90,8 @@
    "holes": 1.0,
    "volume_ratio": 1.038,
    "area_ratio": 0.964,
-   "silhouette_iou": 0.9881
+   "silhouette_iou": 0.9881,
+   "leaderboard": 0.929
   },
   "test_case_9": {
    "valid": true,
@@ -93,8 +101,10 @@
    "holes": 1.0,
    "volume_ratio": 1.231,
    "area_ratio": 0.722,
-   "silhouette_iou": 0.996
+   "silhouette_iou": 0.996,
+   "leaderboard": 0.831
   }
  },
- "settings": "FORGE_THINKING=on FORGE_REASONING_EFFORT=medium FORGE_MAX_TOKENS=16000 FORGE_LLM_TIMEOUT_S=700 FORGE_CANDIDATES=2 FORGE_CARVE=1 FORGE_WORKERS=9 FORGE_BUDGET_S=3000"
+ "settings": "FORGE_THINKING=on FORGE_REASONING_EFFORT=medium FORGE_MAX_TOKENS=16000 FORGE_LLM_TIMEOUT_S=700 FORGE_CANDIDATES=2 FORGE_CARVE=1 FORGE_WORKERS=9 FORGE_BUDGET_S=3000",
+ "leaderboard_commit": "f3ad735"
 }

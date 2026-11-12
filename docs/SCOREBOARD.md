@@ -57,6 +57,8 @@ Per part, as the leaderboard reported them. Bold marks the best value seen for t
 | `06-no-model-depth` | 0.856 | 0.990 | 0.944 | **0.997** | 0.851 | 0.838 | 0.610 | 0.706 | 0.936 | 0.831 |
 | `03-two-pass-qwen-think-cuts` (floor: 01) | 0.853 | 0.976 | **0.958** | **0.997** | **0.915** | 0.848 | 0.621 | 0.700 | 0.930 | 0.733 |
 | `05-faces-qwen-think-cuts` (floor: 04) | **0.870** | **0.993** | 0.939 | **0.997** | 0.913 | 0.840 | **0.658** | **0.708** | **0.937** | **0.844** |
+| `02-two-pass-qwen-nothink` (floor: 01) | 0.854 | 0.949 | 0.944 | 0.997 | 0.913 | 0.849 | 0.610 | 0.700 | 0.936 | 0.784 |
+| `09-helper-think-fit` (floor: 06, helper-API bodies) | 0.863 | 0.993 | 0.921 | 0.997 | 0.914 | **0.857** | 0.644 | 0.680 | 0.929 | 0.831 |
 
 Best value per part, taken across submissions, averages 0.873. That is a ceiling for what
 we have built so far, not a run we can reproduce.
@@ -87,6 +89,17 @@ What each comparison shows:
 8. **Where the remaining points are:** part 6 (0.66), part 7 (0.71), then 5, 9 and 4
    (0.84–0.91). Parts 1, 2, 3 and 8 are at 0.94–0.99 and have little left. Lifting 6 and
    7 to 0.85 would add 0.04 to the mean; nothing else we know of is that large.
+10. **Making the model's bodies build did not make them right** (`09`). With the helper
+    API every body runs and spans the envelope, and the hole search gives it the exact hole
+    count. Against the no-model floor the leaderboard moved: part 4 +0.063, part 6 +0.034,
+    part 5 +0.019, part 7 −0.026; cut lists: part 2 −0.023, part 8 −0.007. Our estimate
+    had promised +0.36 summed over those six parts; the leaderboard gave +0.06. A body can
+    have the exact volume, the exact holes and nearly the right silhouettes (part 5:
+    volume ×1.00) and still gain little: the material is inside the outline but not where
+    the real part has it, and nothing we measure can see that.
+11. **Cut lists over three runs sum to about zero** (−0.044, +0.066, −0.030) with large
+    swings per part. They add minutes and variance, not points: off by default.
+12. **Thinking is not needed for the part 4 gain** (`02`: 0.913 with thinking off).
 9. **The model pass costs 20 minutes for about +0.014** over the no-model floor (0.870
    against 0.856), most of it from parts 4 and 6.
 
