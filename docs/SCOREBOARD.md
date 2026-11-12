@@ -239,3 +239,18 @@ our agent, never to predict the leaderboard.
 | 9 | V6 engine block | 371 | complex | 6 | bores at 45° |
 
 The hidden set is 9 different parts in the same format and tiers. Do not tune to these.
+
+## Evening of 12 Nov: bigger models and the clean state
+
+| Submission | What | Leaderboard |
+|---|---|---|
+| 14-pockets | 27B, pocket step, 3 bodies | **0.877** (best) |
+| 15-flashnext-bodies | Qwen3.8-Flash-Next instead of the 27B, code of 12 | 0.875 |
+| 16-shell-nomodel-trial | no model, shell step | 0.861 (part 6: 0.600) |
+| 17-flashnext-6-fill | Flash-Next, 6 bodies, envelope fill | 0.869 (part 7: 0.708) |
+| 18-flashnext-fill-shell | the same on the code with the shell | 0.869 (part 9: 0.837) |
+| 19-glm53-bodies | GLM-5.3-Flash, thinking low | below 14 |
+
+Folders 16–19 were removed after scoring; their files are in git history (commits `f3a6ff5`,
+`dc74816`, `db6d99d`, `f4a55e0`). Decisions: shell off (`FORGE_SHELL_VOL=99`), envelope fill
+off (default), 27B kept. `main` holds 14's nine files and 14's settings plus the shell switch.

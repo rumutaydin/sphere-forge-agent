@@ -43,6 +43,15 @@ Next, in this order:
 Before staging a submission: `git fetch`, look at `origin/main` (a teammate pushed a trial
 there on 12 Nov), merge, then `scripts/submit_approach.sh <name>`; Robin pushes.
 
+## Clean state, evening of 12 Nov (read this first)
+
+`main` holds approach `14-pockets` (leaderboard 0.877, our best): its nine output files and its
+settings, plus `FORGE_SHELL_VOL=99` (the shell step scored 0.600 on part 6 and is off). The model
+for the freeze is **Qwen3.8-27B** on `clinical-ivory-barnacle` (start it in the Brev console,
+then `scripts/serve_vllm.sh` if the container is missing). Bigger models were tried and dropped:
+Qwen3.8-Flash-Next (best 0.875) and GLM-5.3-Flash (below 14); both instances are deleted, their
+serve scripts stay in `scripts/`. Numbers: `docs/SCOREBOARD.md`, last section.
+
 ## State at midday, 12 Nov
 
 Six submissions today; best 0.870 (`05`). The clean configuration (no cut lists,
