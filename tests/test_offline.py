@@ -171,3 +171,15 @@ def test_cut_list_survives_a_truncated_reply():
     assert len(parse_cuts("Here you go:\n" + whole)) == 2
     assert len(parse_cuts(whole[:whole.index('{"shape": "cylinder"') + 30])) == 1
     assert parse_cuts("no json here") == []
+
+
+def test_hole_count_from_topology_matches_the_mesh(plate, tmp_path):
+    import cadquery as cq
+
+    from forge.geometry import brep_genus, genus, shape_to_mesh
+
+    gear = get_backend().execute("from forge.library import spur_gear\nresult = spur_gear(module=2, teeth=20, width=10, bore=8)", tmp_path / "g")
+    ball = get_backend().execute("import cadquery as cq\nresult = cq.Workplane('XY').sphere(10).cut(cq.Workplane('XY').circle(3).extrude(40, both=True))", tmp_path / "b")
+    for res, expected in ((plate, 4), (gear, 1), (ball, 1)):
+        shape = cq.importers.importStep(str(res.step_path)).val()
+        assert brep_genus(shape) == genus(shape_to_mesh(shape)) == expected

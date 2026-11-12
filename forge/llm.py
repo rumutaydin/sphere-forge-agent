@@ -50,7 +50,7 @@ class OpenAICompatLLM(LLM):
         from openai import OpenAI
 
         self.timeout = timeout or float(os.environ.get("FORGE_LLM_TIMEOUT_S", "300"))
-        self.client = OpenAI(timeout=self.timeout, max_retries=0)
+        self.client = OpenAI(timeout=self.timeout, max_retries=1)   # one retry: a dropped connection must not cost a candidate
         self.model = model or os.environ["OPENAI_MODEL"]
         self.max_tokens = int(os.environ.get("FORGE_MAX_TOKENS", "6000"))
         self.extra: dict = {}
