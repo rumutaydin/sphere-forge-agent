@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 from pathlib import Path
 
@@ -719,6 +720,39 @@ def compile_part(task, out_dir: str | Path, sources=None, publish: str | Path | 
     return rows
 
 
+def fill_envelope(shape, hull_shape, box: dict | None, overlap: float = 1.0):
+    """Where `shape` falls short of the facts box on an axis (a misplaced end piece cut off by
+    the hull trim), add the silhouette body's own material in the missing strip. The hull
+    contains the true part, so this restores outline material; nothing is scaled. Returns
+    `shape` unchanged unless the result is one valid solid that reaches further."""
+    import cadquery as cq
+
+    if not box:
+        return shape
+    size = [float(box["x"]), float(box["y"]), float(box["z"])]
+    bb = shape.BoundingBox()
+    lo, hi = [bb.xmin, bb.ymin, bb.zmin], [bb.xmax, bb.ymax, bb.zmax]
+    out = shape
+    for k in range(3):
+        tol = 0.005 * size[k] + 0.05
+        strips = []
+        if lo[k] > tol:
+            strips.append((0.0, lo[k] + overlap))
+        if size[k] - hi[k] > tol:
+            strips.append((hi[k] - overlap, size[k]))
+        for a, b in strips:
+            mn, mx = [0.0, 0.0, 0.0], list(size)
+            mn[k], mx[k] = a, b
+            slab = cq.Solid.makeBox(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2], cq.Vector(*mn))
+            try:
+                filled = _largest_solid(out.fuse(hull_shape.intersect(slab)).clean())
+            except Exception:
+                continue
+            if filled.isValid() and filled.Volume() >= out.Volume():
+                out = filled
+    return out
+
+
 def finish_body(result, facts_path: str, hull: str | None = None, holes: str = "open"):
     """Called at the end of a model-written body program. Moves the body so its bounding-box
     minimum corner is at the origin (the facts frame), trims it with the silhouette body
@@ -734,9 +768,12 @@ def finish_body(result, facts_path: str, hull: str | None = None, holes: str = "
     RAW_BBOX = {"min": [bb.xmin, bb.ymin, bb.zmin], "max": [bb.xmax, bb.ymax, bb.zmax]}
     shape = shape.translate(cq.Vector(-bb.xmin, -bb.ymin, -bb.zmin))
     if hull and Path(hull).is_file():
-        trimmed = _largest_solid(shape.intersect(cq.importers.importStep(hull).val()))
+        hull_shape = cq.importers.importStep(hull).val()
+        trimmed = _largest_solid(shape.intersect(hull_shape))
         if trimmed.isValid() and trimmed.Volume() > 0.5 * shape.Volume():
             shape = trimmed
+        if os.environ.get("FORGE_ENVELOPE_FILL", "0") == "1":
+            shape = fill_envelope(shape, hull_shape, facts.get("bounding_box_mm"))
     if holes == "fit":
         # the search that makes the through-hole count equal the facts (needs the views)
         from .cases import load_tasks
