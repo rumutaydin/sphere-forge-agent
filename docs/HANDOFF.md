@@ -23,6 +23,15 @@ thinking off, helper-API bodies, guards on dimensions and margin) is approach
 what `main` should hold. The next tasks, ordered and self-contained, are T1–T10 in
 [PLAN.md](PLAN.md). The Brev instance was running at 12:00 UTC.
 
+## Told by the organisers, 12 Nov (via Robin)
+
+- The container that runs our agent has **96 GB of memory**.
+- The one-GPU limit applies to **the agent's container only**. The model endpoint we host
+  may use as many GPUs as we like. Robin is setting up Qwen3.8-Flash-Next (NVFP4) on two
+  RTX PRO 6000 as a candidate to replace Qwen3.8-27B.
+- Still not asked or not answered: how many CPU cores the container has; whether the
+  hidden parts come with `facts.json`; how strictly a re-run is compared.
+
 ## Leaderboard on 12 Nov (morning)
 
 Four submissions: no model 0.847, no model with face and depth carving 0.856, with the
