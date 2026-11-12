@@ -28,7 +28,7 @@ five lines of reasoning, then exactly one ```{language} code block of at most 60
 Write the program ONLY with these functions. Do not import or call cadquery yourself: no
 Workplane, no sketches, no selectors, no fillets, no chamfers.
 
-    from forge.library import box, cylinder, cone, prism, revolve, polar, union, cut, common
+    from forge.library import box, cylinder, cone, prism, revolve, loft, star, shell, polar, union, cut, common
 
 {catalogue}
 
@@ -138,23 +138,53 @@ def envelope_problem(result, facts: dict) -> str:
     return "\n".join(lines)
 
 
-def volume_problem(check: dict, facts: dict, tol: float = 0.10) -> str:
-    """Empty if the finished body's volume is within `tol` of the facts; else what to tell the model."""
+def _rank(check: dict) -> float:
+    """What versions of a body are compared by: the estimate less the surface penalty that
+    forge.compile.rank_key uses (the estimate has no surface term; the facts give it exactly)."""
+    import os
+
+    gap = min(abs(check.get("area_ratio", 1.0) - 1.0), 1.0)
+    return check.get("estimate", -1) - float(os.environ.get("FORGE_AREA_W", "0.25")) * gap
+
+
+def volume_problem(check: dict, facts: dict, tol: float = 0.10, faces: dict | None = None, attempt: int = 0) -> str:
+    """Empty if the finished body's volume and surface are within `tol` of the facts; else the exact
+    residuals to tell the model (numeric feedback: CADSmith, arXiv 2603.26512)."""
+    import os
+
     ratio, target = check.get("volume_ratio"), facts.get("volume_mm3") if facts else None
-    if not ratio or not target or abs(ratio - 1) <= tol:
+    area = check.get("area_ratio", 1.0)
+    a_tol = float(os.environ.get("FORGE_AREA_TOL", "0.15"))
+    if not ratio or not target or (abs(ratio - 1) <= tol and abs(area - 1) <= a_tol):
         return ""
     have = ratio * target
-    if ratio > 1:
-        return (f"This program runs and has the right envelope, but the part is too full. After trimming to the outline "
-                f"and cutting the listed bores it has {have:.0f} mm^3; the real part has {target:.0f} mm^3. "
-                f"{have - target:.0f} mm^3 more must be EMPTY ({(1 - 1 / ratio):.0%} of what you built). Surface area is "
-                f"x{check.get('area_ratio', 1):.2f} of the real part's. Look at the views again, the isometric ones above "
-                "all: where is the real part open that yours is solid? Deeper or more grooves, thinner fins or walls, "
-                "a pocket, an open tray, a hollow. Remove that, with numbers that add up to the volume to remove.")
-    return (f"This program runs and has the right envelope, but material is missing. After trimming to the outline and "
-            f"cutting the listed bores it has {have:.0f} mm^3; the real part has {target:.0f} mm^3. "
-            f"{target - have:.0f} mm^3 of material is missing: a mass you left out, a wall or web that is too thin, or a "
-            "cut that is too deep. Add it, with numbers that add up.")
+    lines = ["This program runs and has the right envelope. Residuals of the finished part against the exact facts:",
+             f"- volume {have:.0f} mm^3 against {target:.0f} mm^3 ({(ratio - 1):+.0%})",
+             f"- surface {area * facts.get('surface_area_mm2', 0):.0f} mm^2 against {facts.get('surface_area_mm2', 0):.0f} mm^2 "
+             f"({(area - 1):+.0%})"]
+    want = facts.get("face_types") or {}
+    if faces and want:
+        diffs = [f"{k} {faces.get(k, 0)} vs {v}" for k, v in sorted(want.items()) if faces.get(k, 0) != v]
+        if diffs:
+            lines.append("- face types, yours vs real: " + ", ".join(diffs) +
+                         " (BSPLINE/TORUS/CONE faces in the real part mean lofts, rounds or tapers)")
+    if ratio > 1 + tol:
+        lines.append(f"{have - target:.0f} mm^3 of what you built must be EMPTY ({(1 - 1 / ratio):.0%}). Look at the views "
+                     "again, the isometric ones above all: where is the real part open that yours is solid? Deeper or more "
+                     "grooves, thinner fins or walls, a pocket, an open tray, a hollow (shell). Remove that, with numbers "
+                     "that add up to the volume to remove.")
+    elif ratio < 1 - tol:
+        lines.append(f"{target - have:.0f} mm^3 of material is missing: a mass you left out, a wall or web that is too thin, "
+                     "or a cut that is too deep. Add it, with numbers that add up.")
+    if area < 1 - a_tol:
+        lines.append("The real part has much more surface than yours: thin walls, fins, pleats, ribs or a hollow inside. "
+                     "A thin wall of thickness t has surface about 2 x volume / t.")
+    elif area > 1 + a_tol:
+        lines.append("Yours has too much surface: walls or fins that are too thin or too many, or a hollow that is not there.")
+    if attempt >= 2:
+        lines.append("Earlier corrections did not fix this. Use a DIFFERENT construction this time (for example shell() "
+                     "or loft() instead of stacked boxes, or a revolve instead of prisms), not a tweak of the numbers.")
+    return "\n".join(lines)
 
 
 def run_with_repair(llm: LLM, backend: CadBackend, cand: Candidate, task: Task, task_blocks: list[dict],
@@ -181,11 +211,12 @@ def run_with_repair(llm: LLM, backend: CadBackend, cand: Candidate, task: Task, 
         ran = res.ok and not res.error
         problem = ""
         if ran:
-            rank = lambda c: (round(c.get("estimate", -1), 6), c.get("self_score", -1))   # self-score breaks ties (no views)
+            rank = lambda c: (round(_rank(c), 6), c.get("self_score", -1))   # self-score breaks ties (no views)
             if kept is None or rank(check) > rank(kept[2]):
                 kept = (cand.code, res, check)
             problem = envelope_problem(res, task.facts)
-            budget = "" if problem else volume_problem(check, task.facts)
+            budget = "" if problem else volume_problem(check, task.facts, faces=(res.measure or {}).get("faces"),
+                                                       attempt=attempt)
             cand.log.append(f"ran (estimate {check.get('estimate', 0):.3f}, bores {best[2]}, volume x{check.get('volume_ratio', 0):.2f})"
                             + (", envelope wrong" if problem else ", volume off" if budget else ""))
             if not problem and not budget:
@@ -226,18 +257,27 @@ def floor_note(floor: dict | None, facts: dict) -> str:
     if not floor or not floor.get("check") or not facts.get("volume_mm3"):
         return ""
     c = floor["check"]
-    over, area, target = c.get("volume_ratio", 1.0), c.get("area_ratio", 1.0), float(facts["volume_mm3"])
+    over = c.get("outline_volume_ratio", c.get("volume_ratio", 1.0))
+    area = c.get("outline_area_ratio", c.get("area_ratio", 1.0))
+    target = float(facts["volume_mm3"])
     lines = ["VOLUME BUDGET (computed, exact):",
              f"- the real part: {target:.0f} mm^3, surface {facts.get('surface_area_mm2', 0):.0f} mm^2",
              f"- a solid that fills the outlines of all eight views, with the listed bores cut: {over * target:.0f} mm^3 "
              f"(x{over:.2f}), surface x{area:.2f} of the real part's"]
+    if c.get("turned_axis"):
+        n = c.get("rotation_order", 1)
+        lines.append(f"- measured from the views: the part is turned about a {c['turned_axis']}-axis"
+                     + (f", and its axis view repeats exactly {n} times around that axis (fins, pleats, spokes, "
+                        f"lobes): use {n}, do not count them yourself" if n and n > 1 else ""))
     if over > 1.05:
         lines.append(f"- so {(over - 1) * target:.0f} mm^3 inside the outline is EMPTY in the real part "
                      f"({1 - 1 / over:.0%} of the outline solid). No outline shows where; the shading and the lines inside "
                      "the views do, the two isometric views most of all.")
         if area < 0.8:
             lines.append("- the real surface is much larger than the outline solid's: expect thin fins or ribs with deep "
-                         "gaps between them, an open tray, or a thin-walled shell, not a few shallow pockets.")
+                         "gaps between them, an open tray, or a thin-walled shell, not a few shallow pockets. "
+                         "Use shell(...) for the thin-walled piece only and union() the solid pieces to it; "
+                         "work out which pieces are solid from their size and the volume left over.")
         lines.append("Before the code, state in one line where that empty volume is and which view shows it. "
                      "Your body's volume must come out near the real part's.")
     else:

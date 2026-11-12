@@ -12,9 +12,9 @@ HELPERS. The docstrings are pasted into the model's prompt by catalogue().
 from __future__ import annotations
 
 from .gears import spur_gear
-from .solids import box, common, cone, cut, cylinder, polar, prism, revolve, union
+from .solids import box, common, cone, cut, cylinder, loft, polar, prism, revolve, shell, star, union
 
-SOLIDS = [box, cylinder, cone, prism, revolve, polar, union, cut, common]
+SOLIDS = [box, cylinder, cone, prism, revolve, loft, star, shell, polar, union, cut, common]
 HELPERS = SOLIDS + [spur_gear]
 
 

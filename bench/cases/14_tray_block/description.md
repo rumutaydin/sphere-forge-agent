@@ -1,0 +1,1 @@
+A tray block 120 mm (X) by 80 mm (Y) by 50 mm (Z), base on Z=0. Its vertical outer edges are rounded with a 10 mm radius. The top face carries a rounded-rectangle pocket 35 mm deep that leaves 4 mm thick side walls. Two 20 mm through holes along Z go through the pocket floor at X=35 and X=85, Y=40.

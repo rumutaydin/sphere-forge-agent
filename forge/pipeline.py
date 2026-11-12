@@ -28,7 +28,12 @@ from .types import Candidate, Task
 
 def score_of(check: dict) -> float:
     """What candidates are ranked by: the leaderboard estimate when the views allowed one."""
-    return float(check.get("estimate", check.get("self_score", 0.0))) if check else 0.0
+    if not check:
+        return 0.0
+    import os
+
+    gap = min(abs(check.get("area_ratio", 1.0) - 1.0), 1.0) if "estimate" in check else 0.0
+    return float(check.get("estimate", check.get("self_score", 0.0))) - float(os.environ.get("FORGE_AREA_W", "0.25")) * gap
 
 
 class Agent:

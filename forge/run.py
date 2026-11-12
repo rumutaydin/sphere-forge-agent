@@ -45,6 +45,7 @@ def make_agent(llm=None) -> Agent:
         llm,
         get_backend(os.environ.get("FORGE_BACKEND", "cadquery")),
         n_candidates=int(os.environ.get("FORGE_CANDIDATES", "2")),
+        repairs=int(os.environ.get("FORGE_REPAIRS", "2")),
         rounds=int(os.environ.get("FORGE_ROUNDS", "0")),
         n_carve=int(os.environ.get("FORGE_CARVE", "0")),
         margin=float(os.environ.get("FORGE_MODEL_MARGIN", "0.02")),

@@ -174,3 +174,97 @@ def cut(body, *tools):
 def common(a, b):
     """common(a, b) -> the part of space that is in both a and b."""
     return _wp(_shape(a).intersect(_shape(b)).clean())
+
+
+def star(center, r_tip, r_valley, count, phase=0.0):
+    """star(center, r_tip, r_valley, count, phase=0) -> the 2*count corners of a star outline
+    (tips at radius r_tip, valleys at r_valley) around the 2D point `center`, first tip at angle
+    `phase` degrees. For prism(...) or loft(...): fins, pleats, splines, sunbursts."""
+    cx, cy = float(center[0]), float(center[1])
+    n = int(count)
+    if n < 2 or r_tip <= 0 or r_valley <= 0:
+        raise ValueError("star needs count >= 2 and positive radii")
+    pts = []
+    for i in range(2 * n):
+        r = r_tip if i % 2 == 0 else r_valley
+        a = math.radians(phase) + math.pi * i / n
+        pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+    return pts
+
+
+def loft(axis, sections):
+    """loft(axis, sections) -> a solid joining flat outlines at different heights with straight
+    (ruled) sides: tapered stars, pleated cones, tapered housings, transitions.
+    sections is a list of (position, points): position along the world axis 'X', 'Y' or 'Z',
+    points the closed outline in the other two world coordinates in alphabetical order (as for
+    prism). Every outline needs the same number of corners, e.g. a pleated cone along Z:
+    loft('Z', [(10, star((50, 50), 45, 32, 12)), (90, star((50, 50), 25, 18, 12))])."""
+    import cadquery as cq
+
+    k = "XYZ".index(axis.strip().upper())
+    others = [i for i in range(3) if i != k]
+    secs = sorted(((float(h), pts) for h, pts in sections), key=lambda s: s[0])
+    if len(secs) < 2 or len({len(p) for _, p in secs}) != 1 or len(secs[0][1]) < 3:
+        raise ValueError("loft needs two or more outlines with the same number (>= 3) of corners")
+    wires = []
+    for h, pts in secs:
+        vs = []
+        for p in pts:
+            v = [0.0, 0.0, 0.0]
+            v[others[0]], v[others[1]], v[k] = float(p[0]), float(p[1]), h
+            vs.append(cq.Vector(*v))
+        wires.append(cq.Wire.makePolygon(vs, close=True))
+    return _wp(cq.Solid.makeLoft(wires, True))
+
+
+def shell(solid, wall, open=()):
+    """shell(solid, wall, open=()) -> the solid hollowed out, keeping an outer skin `wall` mm
+    thick: thin-walled housings, covers, tubes, pleated sheets. open lists the sides left open,
+    as '+X', '-X', '+Y', '-Y', '+Z' or '-Z' (the flat faces lying on that side of the solid's
+    box), e.g. shell(box((0, 0, 0), (100, 60, 40)), 3, open=['+Z']) is an open-top tray.
+    With open=() the hollow is sealed inside. Hollow only the region that is hollow: shell
+    one piece, then union() the solid pieces (end discs, flanges) to it."""
+    import cadquery as cq
+
+    s = _shape(solid)
+    t = float(wall)
+    if t <= 0:
+        raise ValueError("wall must be positive")
+    bb = s.BoundingBox()
+    lo, hi = (bb.xmin, bb.ymin, bb.zmin), (bb.xmax, bb.ymax, bb.zmax)
+    tol = 1e-3 * max(bb.xlen, bb.ylen, bb.zlen)
+    faces = []
+    for side in open:
+        side = side.strip().upper()
+        if len(side) != 2 or side[0] not in "+-" or side[1] not in "XYZ":
+            raise ValueError(f"open side must look like '+Z' or '-X', got {side!r}")
+        k = "XYZ".index(side[1])
+        at = hi[k] if side[0] == "+" else lo[k]
+        for f in s.Faces():
+            if f.geomType() != "PLANE":
+                continue
+            fb = f.BoundingBox()
+            ext = ((fb.xmin, fb.xmax), (fb.ymin, fb.ymax), (fb.zmin, fb.zmax))[k]
+            if ext[1] - ext[0] < tol and abs(ext[0] - at) < tol:
+                faces.append(f)
+        if not any(True for _ in faces):
+            raise ValueError(f"no flat face lies on side {side}")
+    try:
+        out = s.shell(faces, -t) if faces else cq.Workplane().add(s).shell(-t).val()
+        if not out.isValid() or out.Volume() <= 0:
+            raise ValueError("invalid")
+    except Exception:
+        # the kernel's offset gives up on some bodies: hollow with booleans instead
+        closed = cq.Workplane().add(s).shell(-t).val()
+        if not faces:
+            raise
+        skins = sorted(closed.Shells(), key=lambda sh: sh.Area())
+        void = cq.Solid.makeSolid(skins[0]).fix()
+        tool = void
+        for side in open:
+            k = "XYZ".index(side.strip().upper()[1])
+            d = [0.0, 0.0, 0.0]
+            d[k] = (1.5 * t) * (1 if side.strip()[0] == "+" else -1)
+            tool = tool.fuse(void.translate(cq.Vector(*d)))
+        out = s.cut(tool)
+    return _wp(out)
