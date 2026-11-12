@@ -2,6 +2,7 @@
 
     pass 1 (forge.compile, no model)   silhouette body + bores from the facts -> written at once
     pass 2 (this file, the model)      [ body program -> finished by code -> repair ] x N -> select
+                                       [ exact program -> measured -> revised ] x FORGE_EXACT, behind a strict gate
 
 The file in the output folder is always the best part known so far: a box first, then the
 no-model part, then any candidate whose estimate is higher. Nothing waits for the end of
@@ -11,6 +12,7 @@ forge/stages/ and forge/compile.py. Keep this file thin.
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -19,6 +21,7 @@ from pathlib import Path
 from .backends import CadBackend
 from .compile import publish_file
 from .llm import LLM
+from .stages import exact
 from .stages.build import floor_note, generate, run_with_repair
 from .stages.carve import apply_cuts, propose_cuts
 from .stages.understand import task_content
@@ -33,7 +36,8 @@ def score_of(check: dict) -> float:
 
 class Agent:
     def __init__(self, llm: LLM, backend: CadBackend, n_candidates: int = 2, repairs: int = 2, rounds: int = 0,
-                 n_carve: int = 0, margin: float = 0.02, edge_veto: float = 0.015):
+                 n_carve: int = 0, margin: float = 0.02, edge_veto: float = 0.015, n_exact: int | None = None):
+        self.n_exact = int(os.environ.get("FORGE_EXACT", "0")) if n_exact is None else n_exact
         self.llm, self.backend, self.n_carve, self.margin, self.edge_veto = llm, backend, n_carve, margin, edge_veto
         self.n_candidates, self.repairs, self.rounds = n_candidates, repairs, rounds
 
@@ -84,6 +88,8 @@ class Agent:
                 # see inside the outline, and on the leaderboard small estimated gains were noise
                 # (part 2: +0.017 estimated, -0.005 scored).
                 bar = best["score"] + (self.margin if best["code"] is None and floor else 1e-9)
+                if best.get("exact"):
+                    return      # an exact program that passed the gate is replaced only by a more faithful one
                 if score_of(cand.check) > bar or best["step"] is None:
                     best.update(score=score_of(cand.check), step=str(cand.result.step_path),
                                 chosen=f"model {'cuts' if cand.idx >= 100 else 'body'} {cand.idx % 100}", check=cand.check, code=cand.code)
@@ -103,6 +109,21 @@ class Agent:
                 else:
                     cand.log.append("no program in the reply")
             except Exception as exc:  # one failed call ends this candidate only
+                cand.log.append(f"failed: {type(exc).__name__}: {exc}")
+            return cand
+
+        def exact_work(i: int) -> Candidate:
+            """The model writes the whole part and revises it against measurements (forge/stages/exact.py)."""
+            cand = Candidate(i, "", out_dir / f"exact{i % 100}")
+            try:
+                exact.run_exact(self.llm, self.backend, cand, task, blocks, deadline=deadline, note=note)
+                with lock:
+                    if exact.accept(cand, best, floor):
+                        best.update(score=score_of(cand.check), step=str(cand.result.step_path), exact=True,
+                                    chosen=f"exact program {i % 100}", check=cand.check, code=cand.code)
+                        if publish:
+                            publish_file(cand.result.step_path, publish)
+            except Exception as exc:
                 cand.log.append(f"failed: {type(exc).__name__}: {exc}")
             return cand
 
@@ -128,8 +149,9 @@ class Agent:
             blocks = task_content(task)
             note = floor_note(floor, task.facts)
             n_carve = self.n_carve if floor and floor["check"].get("volume_ratio", 1.0) > 1.04 and task.dir else 0
-            with ThreadPoolExecutor(max(self.n_candidates + n_carve, 1)) as pool:
+            with ThreadPoolExecutor(max(self.n_candidates + n_carve + self.n_exact, 1)) as pool:
                 jobs = [pool.submit(work, i) for i in range(self.n_candidates)]
+                jobs += [pool.submit(exact_work, 200 + i) for i in range(self.n_exact)]
                 jobs += [pool.submit(carve, 100 + i) for i in range(n_carve)]
                 cands = [j.result() for j in jobs]
         except Exception as exc:  # a dead endpoint must not cost us what we already have

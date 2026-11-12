@@ -32,7 +32,9 @@ def image_block(path: str | Path, max_side: int = 768) -> dict:
 
 
 class LLM:
-    def complete(self, system: str, content: list[dict], timeout: float | None = None) -> str:
+    def complete(self, system: str, content: list[dict], timeout: float | None = None,
+                 thinking: str | None = None, max_tokens: int | None = None) -> str:
+        """`thinking` (off | on | low | medium | high) and `max_tokens` override the settings for this call only."""
         raise NotImplementedError
 
 
@@ -44,6 +46,8 @@ class OpenAICompatLLM(LLM):
     FORGE_THINKING (off)        off = no thinking (vLLM / Qwen chat-template switch); on = server default
     FORGE_REASONING_EFFORT      passed through as reasoning_effort when set (and thinking is on)
     FORGE_TEMPERATURE, FORGE_SEED  sampling, for repeatable runs
+    complete(..., thinking=, max_tokens=) override thinking and the reply limit for one call
+    (the exact-program path thinks while the body path does not).
     """
 
     def __init__(self, model: str | None = None, timeout: float | None = None):
@@ -66,7 +70,19 @@ class OpenAICompatLLM(LLM):
         self.calls = 0
         self.tokens = 0
 
-    def complete(self, system: str, content: list[dict], timeout: float | None = None) -> str:
+    def _extra(self, thinking: str | None) -> dict:
+        """Request extras for one call; `thinking` None keeps the FORGE_THINKING setting."""
+        if thinking is None:
+            return self.extra
+        extra = {k: v for k, v in self.extra.items() if k not in ("extra_body", "reasoning_effort")}
+        if thinking in ("off", "0", "false", "no"):
+            extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+        elif thinking in ("low", "medium", "high"):
+            extra["reasoning_effort"] = thinking
+        return extra
+
+    def complete(self, system: str, content: list[dict], timeout: float | None = None,
+                 thinking: str | None = None, max_tokens: int | None = None) -> str:
         parts = []
         for block in content:
             if block["type"] == "text":
@@ -76,10 +92,10 @@ class OpenAICompatLLM(LLM):
                               "image_url": {"url": "data:image/png;base64," + block["data"]}})
         reply = self.client.chat.completions.create(
             model=self.model,
-            max_tokens=self.max_tokens,
+            max_tokens=max_tokens or self.max_tokens,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": parts}],
             timeout=max(5.0, min(self.timeout, timeout)) if timeout else self.timeout,
-            **self.extra,
+            **self._extra(thinking),
         )
         choice = reply.choices[0]
         self.calls += 1
@@ -97,6 +113,6 @@ class ScriptedLLM(LLM):
         self.replies = list(replies)
         self.calls: list[tuple[str, list[dict]]] = []
 
-    def complete(self, system: str, content: list[dict], timeout: float | None = None) -> str:
+    def complete(self, system: str, content: list[dict], timeout: float | None = None, **_) -> str:
         self.calls.append((system, content))
         return self.replies[min(len(self.calls) - 1, len(self.replies) - 1)]
