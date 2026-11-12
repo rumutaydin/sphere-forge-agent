@@ -271,6 +271,8 @@ def mouth_faces(task, min_rim: float = 0.55) -> list[dict]:
         cache[stem] = (img, cam, part, edge, labels)
     ang = np.linspace(0, 2 * np.pi, 72, endpoint=False)
     for seg in segs:
+        if not seg.get("ends_known", True):
+            continue                       # a bore placed from the brief alone: its end planes are a guess
         d = np.array(seg["dir"])
         for sign in (1.0, -1.0):
             n_out = sign * d

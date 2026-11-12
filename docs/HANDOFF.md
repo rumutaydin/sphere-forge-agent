@@ -15,6 +15,28 @@ set is about 0.8, against 0.658 submitted yesterday and 0.320 for boxes. The est
 give the real values. What remains hard is material hidden from every outline: hollow interiors, fins,
 sloped pockets (parts 6 and 7).
 
+## Hidden parts have no facts.json (12 Nov, night; branch `a/facts-from-brief`, not merged)
+
+The README of the organisers' extended practice set says the hidden parts give only `images/`,
+`context.png` and `description.md`. Before this branch a task without `facts.json` got no file
+at all. Now `forge/cases.py: load_facts` falls back to `forge/brief.py: facts_from_brief`, which
+reads the bounding box, volume and through-hole count from the brief's Envelope line (exact on
+all 20 distinct briefs we have) and places the bores the feature bullets describe (132 of 146
+real bores on the right axis line; 14 missed; none invented). Surface area and face counts are
+not in the brief and are not made up; nothing downstream needs them. If a brief has no Envelope
+line the box comes from the views' proportions and the largest mm figure in the brief, else
+100 mm, so every task still gets a solid. A run writes the rebuilt facts to
+`<work>/_facts/<task>.json` and passes the folder to its subprocesses in `FORGE_FACTS_DIR`.
+Measured with no model, scored against the real facts (local estimate): practice 0.801 with
+facts, 0.797 from the brief alone (parts 5 and 7 lose 0.011 and 0.025, the rest are equal);
+ten extended parts 0.597 with facts, 0.606 without. `FORGE_IGNORE_FACTS=1` forces the brief
+path on parts that have facts (use it to rehearse the hidden set); the Dockerfile does not set
+it. Not measured: the model pass on brief facts (endpoint down), and `FORGE_BRIEF_LLM=1` (one
+text call per task to add bores the rules missed; off by default). Check a parser change with
+`uv run python scripts/brief_check.py artifacts/inputs <extended>/parts` and compare runs with
+`uv run python scripts/rescore.py <run> <run>`. Side finding: the no-model pass is much weaker
+on the extended parts (estimate 0.29 to 0.92, mean 0.60) than on the nine practice parts.
+
 ## State at 17:30 UTC, 12 Nov (read this first)
 
 **Best: 0.877, approach `14-pockets`, on `main` at `bb40232`.** Per part: 0.990, 0.944,

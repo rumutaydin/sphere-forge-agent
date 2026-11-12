@@ -10,7 +10,9 @@ Rules this file enforces:
 
 Settings (environment): FORGE_BUDGET_S (3000), FORGE_PASS1_S (600, per part), FORGE_WORKERS (9),
 FORGE_CANDIDATES (2), FORGE_CARVE (0), FORGE_ROUNDS (0), FORGE_FACES (on), FORGE_DEPTH (on), FORGE_RADIAL (on),
-FORGE_MODEL_MARGIN (0.02), FORGE_EDGE_VETO (0.015), FORGE_MODEL_PASS (on), FORGE_SKIP_ABOVE (0.90).
+FORGE_MODEL_MARGIN (0.02), FORGE_EDGE_VETO (0.015), FORGE_MODEL_PASS (on), FORGE_SKIP_ABOVE (0.90),
+FORGE_IGNORE_FACTS (0; 1 = build from the brief even where facts.json exists), FORGE_BRIEF_LLM (0; 1 = one
+extra text call per task without facts.json to find bores the parser missed, FORGE_BRIEF_LLM_S (60) each).
 """
 from __future__ import annotations
 
@@ -24,7 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from .backends import get_backend
-from .cases import load_tasks
+from .cases import load_tasks, settle_brief_facts
 from .compile import publish_file
 from .pipeline import Agent, score_of
 from .types import Task
@@ -82,6 +84,7 @@ def run_all(input_dir: Path, output_dir: Path, agent: Agent | None = None, only:
     output_dir.mkdir(parents=True, exist_ok=True)
     work = Path(work_dir or tempfile.mkdtemp(prefix="forge-"))
     agent = agent or make_agent()
+    os.environ.pop("FORGE_FACTS_DIR", None)      # an earlier run's rebuilt facts are not this run's
     tasks = load_tasks(input_dir, only)
     workers = int(os.environ.get("FORGE_WORKERS", "9"))
     out_file = {t.name: output_dir / f"{t.name}.stp" for t in tasks}
@@ -90,6 +93,7 @@ def run_all(input_dir: Path, output_dir: Path, agent: Agent | None = None, only:
         box = agent.fallback(task, work / task.name)
         if box:
             publish_file(box, out_file[task.name])
+    settle_brief_facts(tasks, work / "_facts", agent.llm)    # tasks without facts.json: facts from the brief
 
     # pass 1: no model. Seconds to a few minutes per part, all parts at once.
     p1_budget = min(float(os.environ.get("FORGE_PASS1_S", "600")), max(budget - 120, 30))

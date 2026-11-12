@@ -143,7 +143,8 @@ def bores(task) -> list[dict]:
         for i, centre in enumerate(centres):
             length = float(lengths[i]) if len(lengths) == len(centres) else float(max(lengths))
             out.append({"centre": [float(c) for c in centre], "dir": direction, "length": length,
-                        "radius": diameter / 2, "visible": False, "group": len(groups_seen)})
+                        "radius": diameter / 2, "visible": False, "group": len(groups_seen),
+                        "ends_known": group.get("ends") != "assumed"})   # facts from the brief may not know the ends
         groups_seen.append(1)
     by_stem = {v.stem: v for v in task.views}
     for stem in AXIS_VIEWS:
@@ -897,7 +898,9 @@ def finish_body(result, facts_path: str, hull: str | None = None, holes: str = "
     (the true part lies inside it, so anything outside is wrong), and cuts the facts' bores."""
     import cadquery as cq
 
-    facts = json.loads(Path(facts_path).read_text())
+    from .cases import load_facts
+
+    facts = load_facts(Path(facts_path).parent)      # facts.json, or the brief when there is none
     shape = result.val() if isinstance(result, cq.Workplane) else result
     if isinstance(shape, cq.Compound) and len(shape.Solids()) == 1:
         shape = shape.Solids()[0]
