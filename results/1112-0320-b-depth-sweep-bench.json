@@ -1,0 +1,93 @@
+{
+ "inputs": "bench/cases (organiser-style renders of the answers)",
+ "n_cases": 12,
+ "mean_self_score": 0.0,
+ "mean_score": 0.9237193934935525,
+ "mean_hull": 0.9195087763903912,
+ "cases": {
+  "01_plate": {
+   "hull": 0.9979771742614266,
+   "score": 0.9979771742614266,
+   "self_score": 0.0,
+   "volume_hull": 0.9997890858348443,
+   "volume_carved": 0.9997890858348443
+  },
+  "02_l_bracket": {
+   "hull": 0.9967788421063055,
+   "score": 0.998050666808759,
+   "self_score": 0.0,
+   "volume_hull": 0.9952805229626994,
+   "volume_carved": 0.9952804969462655
+  },
+  "03_flange": {
+   "hull": 0.9614842117752403,
+   "score": 0.9960376827393294,
+   "self_score": 0.0,
+   "volume_hull": 1.0635855848280877,
+   "volume_carved": 0.9912662046400651
+  },
+  "04_shaft": {
+   "hull": 0.9618586926580653,
+   "score": 0.9618586926580653,
+   "self_score": 0.0,
+   "volume_hull": 1.0496596204646103,
+   "volume_carved": 1.0496596204646103
+  },
+  "05_hex_nut": {
+   "hull": 0.997197606665229,
+   "score": 0.997197606665229,
+   "self_score": 0.0,
+   "volume_hull": 1.000534865759521,
+   "volume_carved": 1.000534865759521
+  },
+  "06_enclosure": {
+   "hull": 0.6823793464777717,
+   "score": 0.6823793464777717,
+   "self_score": 0.0,
+   "volume_hull": 4.682411896857059,
+   "volume_carved": 4.682411896857059
+  },
+  "07_u_channel": {
+   "hull": 0.9977186784982153,
+   "score": 0.9977186784982153,
+   "self_score": 0.0,
+   "volume_hull": 0.9950853027680089,
+   "volume_carved": 0.9950853027680089
+  },
+  "08_elbow": {
+   "hull": 0.530133569402411,
+   "score": 0.530133569402411,
+   "self_score": 0.0,
+   "volume_hull": 2.2619211416206424,
+   "volume_carved": 2.2619211416206424
+  },
+  "09_wheel": {
+   "hull": 0.9805857148085904,
+   "score": 0.996726199001764,
+   "self_score": 0.0,
+   "volume_hull": 1.015699405699642,
+   "volume_carved": 0.9879590158035528
+  },
+  "10_pillow_block": {
+   "hull": 0.9983756879142822,
+   "score": 0.9969373132924997,
+   "self_score": 0.0,
+   "volume_hull": 0.9967890490869908,
+   "volume_carved": 0.9948074709468528
+  },
+  "11_heat_sink": {
+   "hull": 0.9840492902407464,
+   "score": 0.9840492902407464,
+   "self_score": 0.0,
+   "volume_hull": 0.979703452020559,
+   "volume_carved": 0.979703452020559
+  },
+  "12_loft_adapter": {
+   "hull": 0.9455665018764117,
+   "score": 0.9455665018764117,
+   "self_score": 0.0,
+   "volume_hull": 1.0460085285405742,
+   "volume_carved": 1.0460085285405742
+  }
+ }
+}

@@ -91,3 +91,65 @@ def render_sheet(mesh, out_path: str | Path, tile: int = 384) -> Path:
     """Our part in all eight views on one sheet, in the same order as the task's views."""
     imgs = [render_view(mesh, look, up, tile) for look, up in VIEWS.values()]
     return contact_sheet(imgs, [s.split("_", 2)[2] for s in VIEWS], out_path, tile)
+
+
+# --- the organisers' look, for our own reference parts ------------------------------------------
+
+def render_organiser_style(shape, stem: str, size_mm, px: int = 1024) -> np.ndarray:
+    """One view of a CadQuery shape drawn the way the task views are drawn: orthographic, the
+    projected bounding box fitted and centred (forge.vision.Camera), each face flat-shaded by a
+    light fixed to the camera, black strokes on outlines and face borders, white background.
+
+    `shape` must sit in the facts frame (bounding-box minimum corner at the origin). Painter's
+    algorithm, no GPU. Good enough to test anything that reads strokes and shades
+    (forge/layers.py) against a part whose answer we have.
+    """
+    from .vision import Camera
+
+    cam = Camera(stem, size_mm, px)
+    light = np.array([0.25, 0.6, 0.75])
+    light /= np.linalg.norm(light)
+    base = np.array([205.0, 162.0, 106.0])
+    diag = float(np.linalg.norm(size_mm)) or 1.0
+    tris, depth, shade, ids = [], [], [], []
+    for k, face in enumerate(shape.Faces(), start=1):
+        verts, idx = face.tessellate(diag * 5e-4, 0.15)
+        if not idx:
+            continue
+        v = np.array([p.toTuple() for p in verts])
+        t = v[np.array(idx)]
+        n = np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0])
+        n /= np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-12)
+        n_cam = np.stack([n @ cam.r, n @ cam.u, -(n @ cam.f)], axis=1)
+        n_cam[n_cam[:, 2] < 0] *= -1                       # the side that faces the camera
+        tris.append(cam.to_px(t.reshape(-1, 3)).reshape(-1, 3, 2))
+        depth.append((t @ cam.f).mean(axis=1))
+        shade.append(0.38 + 0.62 * np.clip(n_cam @ light, 0, 1))
+        ids.append(np.full(len(t), k))
+    tris, depth, shade, ids = (np.concatenate(a) for a in (tris, depth, shade, ids))
+    img = Image.new("RGB", (px, px), "white")
+    idimg = Image.new("I", (px, px), 0)
+    d1, d2 = ImageDraw.Draw(img), ImageDraw.Draw(idimg)
+    for j in np.argsort(-depth):                           # far first
+        poly = [tuple(p) for p in tris[j]]
+        col = tuple(int(c) for c in base * shade[j])
+        d1.polygon(poly, fill=col, outline=col)
+        d2.polygon(poly, fill=int(ids[j]), outline=int(ids[j]))
+    rgb = np.asarray(img).copy()
+    fid = np.asarray(idimg)
+    edge = np.zeros(fid.shape, bool)
+    edge[:, 1:] |= fid[:, 1:] != fid[:, :-1]
+    edge[1:, :] |= fid[1:, :] != fid[:-1, :]
+    rgb[edge] = (20, 16, 12)
+    return rgb
+
+
+def render_organiser_views(shape, out_dir: str | Path, size_mm, px: int = 1024) -> list[Path]:
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for stem in VIEWS:
+        path = out_dir / f"{stem}.png"
+        Image.fromarray(render_organiser_style(shape, stem, size_mm, px)).save(path)
+        paths.append(path)
+    return paths

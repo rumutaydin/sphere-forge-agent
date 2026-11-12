@@ -29,7 +29,13 @@ def _rgb(path) -> np.ndarray:
     return np.asarray(Image.open(path).convert("RGB")).astype(np.int16)
 
 
-def face_depths(task, stem: str, min_frac: float = 0.0008, steps: int = 240) -> list[dict]:
+def face_depths(task, stem: str, min_frac: float = 0.0008, steps: int = 240, hull_mesh=None) -> list[dict]:
+    """Flat faces of one axis view with the depth at which each sits.
+
+    `hull_mesh` (the silhouette body, facts frame) rules out impossible depths: a point with
+    nothing of the hull between it and the isometric camera would be in plain sight, so if the
+    isometric view does not show the face there, the face is not at that depth. Without this an
+    open cavity is ambiguous (its floor, slid up to the rim, also lines up with drawn edges)."""
     by = {v.stem: v for v in task.views}
     if stem not in by or ISO_FOR[stem] not in by:
         return []
@@ -48,6 +54,31 @@ def face_depths(task, stem: str, min_frac: float = 0.0008, steps: int = 240) -> 
     ts = np.linspace(0.0, far - near, steps)
     rng = np.random.default_rng(0)
     out = []
+    # Patches of one flat shade in the isometric view. A face slid to its true depth covers the
+    # whole of every patch it lands on (the patch IS the visible part of that face); at a wrong
+    # depth it covers only a piece of a larger patch.
+    key = (iso[..., 0] // 8) * 4096 + (iso[..., 1] // 8) * 64 + iso[..., 2] // 8
+    flat = iso_part & ~ndimage.binary_dilation(iso_stroke, iterations=1)
+    keys, counts = np.unique(key[flat], return_counts=True)
+    pid = np.zeros(key.shape, np.int32)
+    patch_area, patch_key = [0], [-1]
+    for kk in keys[np.argsort(-counts)][:16]:
+        lab, m = ndimage.label(flat & (key == kk))
+        pid[lab > 0] = lab[lab > 0] + len(patch_area) - 1
+        patch_area += list(np.bincount(lab.ravel())[1:])
+        patch_key += [int(kk)] * m
+    patch_area, patch_key = np.array(patch_area, float), np.array(patch_key)
+    foreshorten = abs(float(cam.f @ icam.f)) * (icam.scale / cam.scale) ** 2
+    vox = None
+    if hull_mesh is not None:
+        from .geometry import voxelize
+
+        pitch = float(max(size)) / 96
+        grid = np.maximum(np.ceil(size / pitch).astype(int), 1)
+        vox = voxelize(hull_mesh, np.zeros(3), pitch, grid)
+        march = np.linspace(1.5 * pitch, float(np.linalg.norm(size)), 96)[None, :, None] * (-icam.f)[None, None, :]
+        centres = (np.stack(np.meshgrid(*[np.arange(g) for g in grid], indexing="ij"), axis=-1).reshape(-1, 3) + 0.5) * pitch
+        vpx = np.clip(np.floor(cam.to_px(centres)).astype(int), 0, img.shape[0] - 1)
     for k in range(1, n + 1):
         if areas[k] < min_frac * part.sum():
             continue
@@ -70,20 +101,44 @@ def face_depths(task, stem: str, min_frac: float = 0.0008, steps: int = 240) -> 
             ok = (px[:, 0] >= 0) & (px[:, 0] < iso.shape[1]) & (px[:, 1] >= 0) & (px[:, 1] < iso.shape[0])
             return px, ok
 
-        uni, edg = np.zeros(steps), np.zeros(steps)
+        if vox is not None:
+            # We see this face along its own view direction, so the column in front of it is
+            # empty whatever its depth: only the hull OUTSIDE that column can hide it.
+            column = ndimage.binary_dilation(region, iterations=2)[vpx[:, 1], vpx[:, 0]].reshape(grid)
+            occluder = vox & ~column
+        uni, edg, con = np.zeros(steps), np.zeros(steps), np.zeros(steps)
+        per_sample = len(ys) / len(inner) * foreshorten      # iso pixels one sample stands for
         for j, t in enumerate(ts):
             px, ok = project(inner, t)
-            c = iso[px[ok, 1], px[ok, 0]]
-            good = iso_part[px[ok, 1], px[ok, 0]] & ~iso_stroke[px[ok, 1], px[ok, 0]]
-            if good.sum() < 0.3 * len(inner):
+            hit = pid[px[ok, 1], px[ok, 0]]
+            hit = hit[hit > 0]
+            if len(hit) < 0.2 * len(inner):
                 continue
-            med = np.median(c[good], axis=0)
-            uni[j] = (np.abs(c - med).max(axis=1) <= 10)[good].sum() / len(inner)
+            n_hit = np.bincount(hit, minlength=len(patch_area))
+            whole = n_hit * np.minimum(1.0, n_hit * per_sample / np.maximum(patch_area, 1.0))
+            main = patch_key[int(whole.argmax())]             # the shade of the patch covered most completely
+            sel = (patch_key == main) & (n_hit > 0)
+            contain = np.minimum(1.0, n_hit[sel] * per_sample / np.maximum(patch_area[sel], 1.0))
+            uni[j] = float((n_hit[sel] * contain).sum()) / len(inner)        # covered, and whole patches
+            con[j] = float((n_hit[sel] * contain).sum() / max(n_hit[sel].sum(), 1))
             px, ok = project(border, t)
             edg[j] = iso_edge[px[ok, 1], px[ok, 0]].sum() / len(border)
-        score = uni * (0.25 + 0.75 * edg)
+            if vox is not None:
+                sub = inner[:300]
+                pts = sub[:, :1] * cam.r + sub[:, 1:] * cam.u + (near + t) * cam.f
+                cells = np.floor((pts[:, None, :] + march) / pitch).astype(int)
+                inside = ((cells >= 0) & (cells < grid)).all(axis=2)
+                cells = np.clip(cells, 0, grid - 1)
+                blocked = (occluder[cells[..., 0], cells[..., 1], cells[..., 2]] & inside).any(axis=1)
+                if (~blocked).sum() >= 0.15 * len(sub):
+                    spx = np.floor(icam.to_px(pts[~blocked])).astype(int)
+                    spx = np.clip(spx, 0, iso.shape[0] - 1)
+                    seen = patch_key[pid[spx[:, 1], spx[:, 0]]] == main
+                    if seen.mean() < 0.8:        # in plain sight, yet the view shows something else there
+                        uni[j] = 0.0
+        score = uni * (0.5 + 0.5 * edg)
         j = int(np.argmax(score))
-        out.append({"mask": region, "depth": float(ts[j]), "uniform": float(uni[j]), "edge": float(edg[j]),
+        out.append({"mask": region, "depth": float(ts[j]), "contain": float(con[j]), "uniform": float(uni[j]), "edge": float(edg[j]),
                     "score": float(score[j]), "score0": float(score[0]),
                     "area_mm2": float(areas[k] / cam.scale ** 2), "stem": stem})
     return out
@@ -108,19 +163,20 @@ def carve_layers(body, task, min_depth_frac: float = 0.004, log: list | None = N
     masks = target_masks(task)
     base_iou = shape_score(shape_to_mesh(shape), task, masks)["mean"]
     cuts = []
+    hull_mesh = shape_to_mesh(shape)
     for stem in ISO_FOR:
-        faces = face_depths(task, stem)
+        faces = face_depths(task, stem, hull_mesh=hull_mesh)
         if not faces:
             continue
         cam = Camera(stem, size, faces[0]["mask"].shape[0])
         corners = np.array([[x, y, z] for x in (0, size[0]) for y in (0, size[1]) for z in (0, size[2])]) @ cam.f
         near, extent = corners.min(), np.ptp(corners)
-        sure = [f for f in faces if f["uniform"] >= 0.7 and f["edge"] >= 0.45]
-        part_px = sum(f["mask"].sum() for f in faces) or 1
+        sure = [f for f in faces if f["contain"] >= 0.85 and f["uniform"] >= 0.3 and f["edge"] >= 0.4]
+        part_px = int((_rgb(next(v for v in task.views if v.stem == stem)).min(axis=2) < 235).sum()) or 1
         for f in sure:
             if f["depth"] < min_depth_frac * max(size) or f["score"] < 1.5 * f["score0"]:
                 continue
-            if f["uniform"] < 0.85 or f["edge"] < 0.6 or f["mask"].sum() < 0.004 * part_px:
+            if f["mask"].sum() < 0.004 * part_px:
                 continue        # small or half-hidden regions match by accident; only clear cases cut
             grown = ndimage.binary_dilation(f["mask"], iterations=2)
             carve = ndimage.binary_fill_holes(grown)
@@ -154,7 +210,7 @@ def carve_layers(body, task, min_depth_frac: float = 0.004, log: list | None = N
         if log is not None:
             f = c["face"]
             log.append(f"{c['stem'][5:]} face {f['area_mm2']:.0f} mm2 at depth {c['depth']:.2f} mm "
-                       f"(uniform {f['uniform']:.2f}, edge {f['edge']:.2f}): "
+                       f"(covers {f['uniform']:.2f}, whole patches {f['contain']:.2f}, edge {f['edge']:.2f}): "
                        + (f"cut, volume x{new.Volume() / vol_target:.3f}" if ok and vol_target else "kept" if ok else "rejected"))
         if ok:
             shape, base_iou = new, max(base_iou, iou)

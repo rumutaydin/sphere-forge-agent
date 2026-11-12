@@ -91,7 +91,7 @@ it, into the scoreboard. Do 1 and 2 first: they need no GPU and are fully repeat
 |---|---|---|---|
 | **Robin** | Which approach goes in the final image, and with which model settings? | leaderboard | submit 1–4 in order, read the per-part values |
 | **Track A: Ship** | Does the image do the same on the organisers' machine as on Robin's laptop? | wall-clock in Docker; a public endpoint that stays up | A1 below |
-| **Track B: See** | Can we read the depth of what the outline hides? | true local score on our hollow reference parts: 0.68 and 0.53 today | B1 below |
+| **Track B: See** | Can we read the depth of what the outline hides? | true local score on our hollow reference parts: 0.68 and 0.53 today | B1, then B2 |
 | **Track C: Compile** | How much of the overfill on parts 6 and 7 can code remove? | volume ratio of the no-model part: ×3.2 and ×1.9 today | C1 below |
 
 Every task below is offline unless it says GPU, takes one to three hours, and ends in one
@@ -104,6 +104,7 @@ numbers you are about to move.
 uv sync && uv run pytest -q
 uv run python scripts/compile_all.py -o runs/compile-mine --tag <track>-<idea>   # all nine practice parts, no model
 uv run python scripts/bench_nomodel.py --tag <track>-<idea>-bench                # 12 parts WITH answers: true local score
+uv run python scripts/bench_layers.py --tag <track>-<idea>-layers                  # same 12 parts drawn like the organisers' views
 uv run python scripts/approaches_table.py                                         # what is filed so far
 ```
 
@@ -133,22 +134,36 @@ scoreboard. The estimate was fitted on 16 files; with four more submissions refi
 
 ### Track B: See
 
-**B1. A renderer that draws our reference parts the way the organisers do** (the key
-tool we lack). `bench/cases/` has 12 parts with answers, but their views are silhouettes
-only, so nothing that reads *inside* the outline can be tested against an answer. Write
-`forge/render.py: render_organiser_style(mesh_or_step, camera)`: flat shade per face from
-one fixed light (the practice views show three distinct shades for +X, −Y and +Z faces
-in the isometric view), black strokes on outline and sharp edges, white background, same
-framing as `forge/vision.py: Camera`. Check: `shape_score` of an answer against its own
-render is above 0.995, and the stroke test in `forge/layers.py` (`STROKE`) finds the
-edges. Then `scripts/bench_nomodel.py` can use it instead of plain silhouettes.
-**B2. Depth of flat faces (the enclosure problem).** `06_enclosure` scores 0.68 and
-`08_elbow` 0.53 with no model, because a hull fills a hollow. `forge/layers.py:
-face_depths` already finds the depth of a flat face by sliding it along the view
-direction until it lands on one evenly shaded patch of the isometric view (it finds part
-5's front face at 22.24 mm, which is exact). `carve_layers` cuts those faces but is not
-wired in: on the practice parts it gained nothing and small regions matched by accident.
-With B1 you can test it against answers. Target: enclosure above 0.95 with no model.
+**B1. Measure with the new renderer (done tonight, yours to own).** `forge/render.py:
+render_organiser_style` draws our 12 reference parts the way the organisers draw theirs
+(flat shade per face from a camera-fixed light, black strokes, same framing; an answer
+scores IoU 0.997 against its own render). `scripts/bench_layers.py` builds the hull from
+those views, carves it, and scores both against the answer. Run it first:
+
+```bash
+uv run python scripts/bench_layers.py --tag b-<idea>      # true local score, hull -> carved, per part
+```
+
+Tonight: hull 0.920 → carved 0.924. The depth sweep is right where it fires (flange
+0.961 → 0.996, wheel 0.981 → 0.997) and silent on the two hollow parts.
+**B2. The enclosure problem (the most valuable open task).** `06_enclosure` scores
+0.682 and `08_elbow` 0.530 with no model, because a hull fills a hollow; a cover or
+housing in the hidden set would score like that. `forge/layers.py: face_depths` slides
+each flat face of an axis view along the view direction and scores each depth by how
+completely it covers whole shaded patches of the isometric view. What we learned on the
+enclosure floor (top view, true depth 37 mm):
+- an open cavity is ambiguous: the floor outline slid up to the rim also lands on drawn
+  edges (the rim's inner edge), so edge agreement alone picks depth 0;
+- the fix that is half built: a point with nothing between it and the isometric camera
+  is in plain sight, so a depth is impossible if such points do not show the face's
+  shade. The column in front of the face is empty by definition (we see the face through
+  it), so only the hull outside that column can hide it. This is in the code
+  (`hull_mesh=`), it rejects depth 0 correctly, but it also rejects the true depth; the
+  shade it expects (`main`) or the visibility march is still wrong. Start there: print,
+  for the floor at 37 mm, how many samples are "in plain sight" and what shade they land on.
+Target: enclosure above 0.95 with no model, and no reference part lower than before.
+Then wire `carve_layers` into `forge/compile.py: body_sources` as one more source and
+measure the nine practice parts.
 **B3. Tilted and curved faces.** Parts 6 (fins) and 7 (ribs, pocket in the flange) are
 too full by ×3.2 and ×1.9. The fins of part 6 are flat faces seen in the isometric
 views; the same idea as B2 with a plane that is not axis-aligned.
