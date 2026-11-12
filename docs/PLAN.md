@@ -237,6 +237,27 @@ the edge score and the plain-sight test, cut, check as every cut is checked. Mea
 `scripts/bench_layers.py` first (enclosure, elbow, loft adapter have answers), then the
 nine practice parts. Expected to matter on parts 5, 7 and 9 (trays, pockets, levels).
 
+### T12. Feedback loop: the model sees our render beside the target (GPU)
+
+From the two-model proposal of 12 Nov (vision model -> JSON -> coding model -> sandbox ->
+render -> back to the vision model). Most of that chain we have or have measured as not
+worth it (see the table in `docs/RESEARCH.md` once written up: facts give dimensions and
+holes exactly, code errors are already 2 of 21, cut lists summed to zero). The one piece
+not yet tested fairly is the loop: rounds were tried before the edge score existed, so a
+bad revision could not be told from a good one.
+
+Test: `FORGE_ROUNDS=1` (then 2) on top of the clean configuration, only for parts whose
+no-model edge score is low (the weak ones here are 6, 7, 9; choose by a threshold on the
+edge score, never by part number). Each round shows the model the eight target views and
+our render of the current part in the same views (`forge/vision.py: diff_sheet` or
+`forge/render.py: render_organiser_style`), and asks for a changed helper program. A
+revision replaces the current part only if the estimate does not fall, the dimensions are
+not worse and the edge score does not fall (`FORGE_EDGE_VETO`). Report: how many revisions
+pass the veto, the wall-clock per round (one hour limit for the whole run), and the
+**leaderboard** values of the revised parts, since the estimate cannot rank model bodies.
+Expect little: published critic loops gain 1-3 points of overlap over five rounds. Stop
+after one submission if no part moves by more than 0.02.
+
 ## Rules that came out of today
 
 - `main` receives submission commits only; work on `<track>/<idea>` branches off `main`.
