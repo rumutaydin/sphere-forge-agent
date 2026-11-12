@@ -9,6 +9,7 @@ uniformly shaded patch and its border lands on drawn edges.
 
     face_depths(task, stem)   [{"mask", "depth", "uniform", "edge", "area_mm2"}] for one axis view
     carve_layers(body, task)  cut each confidently placed face down to its depth; returns (body, log)
+    carve_pockets(body, task) open flat faces of the body that an isometric view shows are not there
 """
 from __future__ import annotations
 
@@ -574,4 +575,246 @@ def carve_radial(body, task, log: list | None = None, taper: bool = True):
                 best = (e, new)
         if best:
             edge, shape = best
+    return cq.Workplane("XY").newObject([shape])
+
+
+# --- flat faces the isometric views contradict ---------------------------------------------
+#
+# A silhouette body closes every pocket with a flat lid in the plane of its rim. An isometric
+# view sees three of the six axis directions, and in it every face with the same normal has
+# the same shade. So where the body shows a flat axis-facing face but the view shows another
+# shade, that face is not there: the view looks through an opening. This needs no flat floor
+# and no clean stroke loop, which is what the depth sweep above depends on.
+
+AXIS_STEM = {(0, -1): "view_2_left", (0, 1): "view_3_right", (1, -1): "view_0_front", (1, 1): "view_1_back",
+             (2, 1): "view_4_top", (2, -1): "view_5_bottom"}      # (axis, sign of the face normal) -> the view facing it
+
+
+def contradicted_faces(mesh, task, min_frac: float = 0.012, tol: int = 14) -> list[dict]:
+    """Openings: [{"stem", "mask", "masks", "plane", "thickness", "iso", "px"}]. `stem` is the axis view
+    that looks at the face, `mask` the opening in that view's pixels (`masks`: that and narrower readings), `plane` the face's depth along
+    that view's direction (mm from the origin), `thickness` the body behind it (mm, median)."""
+    from .vision import zbuffer
+
+    size = box_size(task.facts)
+    by = {v.stem: v for v in task.views}
+    tri = np.asarray(mesh.vertices)[np.asarray(mesh.faces)]
+    nrm = np.asarray(mesh.face_normals)
+    out = []
+    for iso_stem in ("view_6_iso_front_right_top", "view_7_iso_back_left_bottom"):
+        if iso_stem not in by:
+            continue
+        img = _rgb(by[iso_stem])
+        icam = Camera(iso_stem, size, img.shape[0])
+        dep, fid = zbuffer(icam.to_px(tri.reshape(-1, 3)).reshape(-1, 3, 2), tri @ icam.f, icam.px)
+        part_px = int((img.min(axis=2) < 235).sum()) or 1
+        stroke = ndimage.binary_dilation(img.max(axis=2) < STROKE, iterations=2)
+        for (ax, sgn), stem in AXIS_STEM.items():
+            d = np.zeros(3)
+            d[ax] = sgn
+            if d @ icam.f > -0.3 or stem not in by:
+                continue
+            face = (fid >= 0) & (nrm[np.maximum(fid, 0)] @ d > 0.995)
+            if face.sum() < 0.01 * part_px:
+                continue
+            cols = img[face & ~stroke]
+            if len(cols) < 200:
+                continue
+            key = (cols // 6) @ np.array([4096, 64, 1])
+            vals, cnt = np.unique(key, return_counts=True)
+            if cnt.max() < 0.25 * len(cols):
+                continue                # no shade stands out as "the" shade of this direction
+            ref = np.median(cols[key == vals[cnt.argmax()]], axis=0)
+            raw = face & ~stroke & (np.abs(img - ref).max(axis=2) > tol)
+            bad = ndimage.binary_opening(raw, iterations=3)
+            # Lid-shaded areas that touch a contradicted area with no stroke between them: the same
+            # surface going on (a curved floor turning to face the lid's way), so part of the opening.
+            rest, n_rest = ndimage.label(face & ~stroke & ~raw)
+            rest_area = np.bincount(rest.ravel(), minlength=n_rest + 1)
+            lab, n = ndimage.label(ndimage.binary_dilation(bad, iterations=4))
+            cam = Camera(stem, size, img.shape[0])
+            # the body seen from the axis view, and from behind: how thick it is under each pixel
+            front, ffid = zbuffer(cam.to_px(tri.reshape(-1, 3)).reshape(-1, 3, 2), tri @ cam.f, cam.px)
+            back, _ = zbuffer(cam.to_px(tri.reshape(-1, 3)).reshape(-1, 3, 2), -(tri @ cam.f), cam.px)
+            for k in range(1, n + 1):
+                comp = bad & (lab == k)
+                if comp.sum() < min_frac * part_px:
+                    continue
+                touch = np.unique(rest[ndimage.binary_dilation(comp, iterations=2) & (rest > 0)])
+                grown = comp | np.isin(rest, [t for t in touch if rest_area[t] <= 0.6 * comp.sum()])
+                found = None
+                for region in ([grown, comp] if grown.sum() > comp.sum() else [comp]):
+                    # out to the middle of the stroke that bounds it (strokes were left out, 3 px a side)
+                    ys, xs = np.nonzero(ndimage.binary_dilation(region, iterations=3) & face)
+                    ab = icam.plane_mm(np.stack([xs, ys], axis=1).astype(float))
+                    pts = ab[:, :1] * icam.r + ab[:, 1:] * icam.u + dep[ys, xs][:, None] * icam.f
+                    plane = float(np.median(pts @ cam.f))
+                    pts = pts[np.abs(pts @ cam.f - plane) < 0.004 * float(max(size))]
+                    if len(pts) < 0.8 * len(ys):
+                        continue            # spread over several levels: not one face
+                    px = np.clip(np.floor(cam.to_px(pts)).astype(int), 0, cam.px - 1)
+                    mask = np.zeros((cam.px, cam.px), bool)
+                    mask[px[:, 1], px[:, 0]] = True
+                    # strokes inside the opening were not counted as contradicted: bridge them, or thin
+                    # ribs are left standing where a line was drawn (padded so closing works at the border)
+                    pad = 12
+                    mask = ndimage.binary_closing(np.pad(mask, pad), iterations=9)[pad:-pad, pad:-pad]
+                    mask = ndimage.binary_opening(ndimage.binary_fill_holes(mask), iterations=2)
+                    mask &= ffid >= 0
+                    if mask.sum() < 50:
+                        continue
+                    if found is None:
+                        # A lid-shaded band inside the opening is usually a flat piece of the floor seen
+                        # through it, not an island at lid height: first reading, bands up to 6% of the
+                        # image wide filled in. The view facing the opening decides (carve_pockets).
+                        wide = int(0.03 * cam.px)
+                        full = ndimage.binary_closing(np.pad(mask, wide + 2), iterations=wide)[wide + 2:-wide - 2, wide + 2:-wide - 2]
+                        full = ndimage.binary_fill_holes(full) & (ffid >= 0)
+                        mask, extra = (full, [mask]) if full.sum() > 1.03 * mask.sum() else (mask, [])
+                        thick = -back[mask] - plane
+                        thick = thick[np.isfinite(thick)]
+                        found = {"stem": stem, "mask": mask, "plane": plane, "iso": iso_stem, "px": int(comp.sum()),
+                                 "thickness": float(np.median(thick)) if len(thick) else 0.0, "masks": [mask] + extra}
+                    else:
+                        found["masks"].append(mask)     # the plain area, tried if the grown one is refused
+                if found:
+                    out.append(found)
+    return out
+
+
+def junction_depth(o: dict, task, max_depth: float, need: float = 0.25) -> float | None:
+    """Depth of a straight-walled pocket behind opening `o`, read from the isometric view that
+    looks into it: the far rim, moved down the wall by the pocket's depth, is where wall meets
+    floor, and that line is drawn. Returns the depth (mm) whose line is drawn most completely,
+    or None if no depth up to `max_depth` stands out (a curved floor, or no floor in sight)."""
+    size = box_size(task.facts)
+    img = _rgb(next(v for v in task.views if v.stem == o["iso"]))
+    px = img.shape[0]
+    cam, icam = Camera(o["stem"], size, o["mask"].shape[0]), Camera(o["iso"], size, px)
+    stroke = ndimage.binary_dilation(img.max(axis=2) < STROKE, iterations=1)
+    ys, xs = np.nonzero(o["mask"])
+    ab = cam.plane_mm(np.stack([xs, ys], axis=1).astype(float))
+    ipx = np.clip(np.floor(icam.to_px(ab[:, :1] * cam.r + ab[:, 1:] * cam.u + o["plane"] * cam.f)).astype(int), 0, px - 1)
+    mouth = np.zeros((px, px), bool)
+    mouth[ipx[:, 1], ipx[:, 0]] = True
+    mouth = ndimage.binary_fill_holes(ndimage.binary_closing(mouth, iterations=2))
+    step = icam.to_px(np.array([cam.f]))[0] - icam.to_px(np.zeros((1, 3)))[0]     # image shift per mm of depth
+    norm = float(np.linalg.norm(step))
+    if norm < 1e-6:
+        return None
+    by, bx = np.nonzero(mouth & ~ndimage.binary_erosion(mouth))
+    probe = np.round(4 * step / norm).astype(int)
+    far = mouth[np.clip(by + probe[1], 0, px - 1), np.clip(bx + probe[0], 0, px - 1)]   # the wall below this rim is in sight
+    by, bx = by[far], bx[far]
+    if len(by) < 40:
+        return None
+    rows = []
+    for t in np.arange(6.0 / norm, max_depth, 1.0 / norm):
+        y, x = np.round(by + t * step[1]).astype(int), np.round(bx + t * step[0]).astype(int)
+        ok = (x >= 0) & (x < px) & (y >= 0) & (y < px)
+        seen = ok.copy()
+        seen[ok] = mouth[y[ok], x[ok]]
+        if seen.sum() >= 0.25 * len(by):
+            rows.append((t, float(stroke[y[seen], x[seen]].mean())))
+    if len(rows) < 5:
+        return None
+    rows = np.array(rows)
+    j = int(rows[:, 1].argmax())
+    if rows[j, 1] < need or rows[j, 1] < 4 * float(np.median(rows[:, 1])) + 0.05:
+        return None
+    return float(rows[j, 0])
+
+
+def carve_pockets(body, task, log: list | None = None, t_end: float | None = None,
+                  default_frac: float | None = None, gain: float = 0.004, max_openings: int = 3):
+    """Open every flat face of `body` that an isometric view contradicts (contradicted_faces) as a
+    pocket with straight walls. First the deepest cut that passes the checks is found (a real
+    pocket has a floor). The depth is the one at which the isometric view draws the line between
+    wall and floor (junction_depth); without such a line it is `default_frac` of the deepest
+    possible (FORGE_POCKET_DEPTH, 0.75), since no depth at all is the worst guess. A pocket is kept only if the part stays one valid solid with the same
+    hole count, no silhouette changes, the volume stays above the facts' volume and the line
+    drawing improves. Use on a body without its bores: a pocket may swallow a bore's mouth."""
+    import os
+    import time
+
+    import cadquery as cq
+
+    from .compile import _largest_solid, _ring_wire
+    from .geometry import brep_genus, shape_to_mesh
+    from .vision import edge_score, mask_polygons, shape_score, target_masks
+
+    if default_frac is None:
+        default_frac = float(os.environ.get("FORGE_POCKET_DEPTH", "0.75"))
+    vol_target = float(task.facts.get("volume_mm3") or 0.0)
+    shape = body.val() if hasattr(body, "val") else body
+    masks = target_masks(task)
+    mesh = shape_to_mesh(shape)
+    base_iou = shape_score(mesh, task, masks)["mean"]
+    genus0 = brep_genus(shape)
+    openings = sorted(contradicted_faces(mesh, task), key=lambda o: -o["mask"].sum())
+    for o in openings[:max_openings]:
+        if t_end is not None and time.monotonic() > t_end:
+            break
+        if o["thickness"] <= 0:
+            continue
+        kept = False
+        for mask in o["masks"][:2]:
+            if kept or (t_end is not None and time.monotonic() > t_end):
+                break
+            cam = Camera(o["stem"], box_size(task.facts), o["mask"].shape[0])
+            polys = mask_polygons(mask, 0.7)
+            name = f"{o['stem'][5:]} opening {mask.sum() / cam.scale ** 2:.0f} mm2"
+
+            def cut(depth, current=shape):
+                """(reason it is refused or "", the cut solid, its mesh)"""
+                try:
+                    tools = []
+                    for poly in polys:
+                        outer = _ring_wire(cam.plane_mm(poly["outer"]), cam, o["plane"] - 0.05)
+                        inners = [_ring_wire(cam.plane_mm(h), cam, o["plane"] - 0.05) for h in poly["holes"]]
+                        tools.append(cq.Solid.extrudeLinear(cq.Face.makeFromWires(outer, inners),
+                                                            cq.Vector(*(cam.f * (depth + 0.05)))))
+                    new = _largest_solid(current.cut(*tools))
+                    why = ("not a valid solid" if not new.isValid() else
+                           "volume below the facts" if vol_target and new.Volume() < 0.985 * vol_target else
+                           "part falls apart" if new.Volume() < 0.5 * current.Volume() else
+                           "hole count changes" if brep_genus(new) != genus0 else "")
+                    m = shape_to_mesh(new) if not why else None
+                    if not why and shape_score(m, task, masks)["mean"] < base_iou - 0.003:
+                        why = "a silhouette changes"
+                    return why, new, m
+                except Exception as exc:
+                    return f"cut failed ({type(exc).__name__})", None, None
+
+            # the deepest cut that passes: coarse steps down, then halving between the last pass and the first fail
+            lo, hi = 0.0, None
+            for frac in (0.03, 0.1, 0.25, 0.5, 0.9):
+                if cut(frac * o["thickness"])[0]:
+                    hi = frac * o["thickness"]
+                    break
+                lo = frac * o["thickness"]
+            if lo == 0.0:
+                if log is not None:
+                    log.append(f"{name}: no cut passes the checks ({cut(0.03 * o['thickness'])[0]})")
+                continue
+            for _ in range(3 if hi is not None else 0):
+                mid = (lo + hi) / 2
+                lo, hi = (lo, mid) if cut(mid)[0] else (mid, hi)
+            seen = junction_depth(o, task, lo)
+            depth = seen if seen is not None else default_frac * lo
+            why, new, m = cut(depth)
+            # Judged in the view that faces the opening: there a pocket is its rim, whatever its depth.
+            # (In the isometric view the floor line of a guessed depth counts against a true pocket.)
+            views = (o["stem"],)
+            base_edge = edge_score(shape_to_mesh(shape), task, views=views)["all"]
+            edge = edge_score(m, task, views=views)["all"] if not why else 0.0
+            keep = not why and edge >= base_edge + gain
+            if log is not None:
+                log.append(f"{name}, depth {depth:.1f} mm ({'floor line seen' if seen is not None else 'no floor line'}; "
+                           f"deepest possible {lo:.1f}): " + (f"rejected, {why}" if why else
+                           f"edge {base_edge:.4f} -> {edge:.4f}, volume x{new.Volume() / vol_target if vol_target else 0:.3f}, "
+                           + ("cut" if keep else "dropped")))
+            if keep:
+                shape = new
+            kept = keep
     return cq.Workplane("XY").newObject([shape])

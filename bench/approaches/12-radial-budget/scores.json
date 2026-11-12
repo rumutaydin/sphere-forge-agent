@@ -1,7 +1,7 @@
 {
  "what": "As 11, plus radial pattern carving on turned parts (part 6: 18 grooves found from the axis view, accepted by the edge score) and the volume budget and volume repair in the model pass. One real run inside the Docker image, 442 s. A model body won on part 4; part 6 is the grooved no-model part.",
  "n_cases": 9,
- "leaderboard": null,
+ "leaderboard": 0.871,
  "mean_estimate": 0.8029,
  "holes_right": 9,
  "cases": {
@@ -13,7 +13,8 @@
    "holes": 1.0,
    "volume_ratio": 0.999,
    "area_ratio": 1.001,
-   "silhouette_iou": 0.9938
+   "silhouette_iou": 0.9938,
+   "leaderboard": 0.99
   },
   "test_case_2": {
    "valid": true,
@@ -23,7 +24,8 @@
    "holes": 1.0,
    "volume_ratio": 1.086,
    "area_ratio": 0.993,
-   "silhouette_iou": 0.9886
+   "silhouette_iou": 0.9886,
+   "leaderboard": 0.944
   },
   "test_case_3": {
    "valid": true,
@@ -33,7 +35,8 @@
    "holes": 1.0,
    "volume_ratio": 0.996,
    "area_ratio": 0.997,
-   "silhouette_iou": 0.9981
+   "silhouette_iou": 0.9981,
+   "leaderboard": 0.997
   },
   "test_case_4": {
    "valid": true,
@@ -43,7 +46,8 @@
    "holes": 1.0,
    "volume_ratio": 1.043,
    "area_ratio": 1.01,
-   "silhouette_iou": 0.9804
+   "silhouette_iou": 0.9804,
+   "leaderboard": 0.913
   },
   "test_case_5": {
    "valid": true,
@@ -53,7 +57,8 @@
    "holes": 1.0,
    "volume_ratio": 1.126,
    "area_ratio": 0.934,
-   "silhouette_iou": 0.9936
+   "silhouette_iou": 0.9936,
+   "leaderboard": 0.838
   },
   "test_case_6": {
    "valid": true,
@@ -63,7 +68,8 @@
    "holes": 1.0,
    "volume_ratio": 2.835,
    "area_ratio": 0.571,
-   "silhouette_iou": 0.9923
+   "silhouette_iou": 0.9923,
+   "leaderboard": 0.685
   },
   "test_case_7": {
    "valid": true,
@@ -73,7 +79,8 @@
    "holes": 1.0,
    "volume_ratio": 1.886,
    "area_ratio": 0.919,
-   "silhouette_iou": 0.9783
+   "silhouette_iou": 0.9783,
+   "leaderboard": 0.706
   },
   "test_case_8": {
    "valid": true,
@@ -83,7 +90,8 @@
    "holes": 1.0,
    "volume_ratio": 1.073,
    "area_ratio": 0.942,
-   "silhouette_iou": 0.9881
+   "silhouette_iou": 0.9881,
+   "leaderboard": 0.936
   },
   "test_case_9": {
    "valid": true,
@@ -93,8 +101,10 @@
    "holes": 1.0,
    "volume_ratio": 1.231,
    "area_ratio": 0.722,
-   "silhouette_iou": 0.9961
+   "silhouette_iou": 0.9961,
+   "leaderboard": 0.831
   }
  },
- "settings": "FORGE_THINKING=off FORGE_CANDIDATES=3 FORGE_CARVE=0 FORGE_MODEL_MARGIN=0.02 FORGE_EDGE_VETO=0.015 FORGE_WORKERS=9 FORGE_BUDGET_S=3000"
+ "settings": "FORGE_THINKING=off FORGE_CANDIDATES=3 FORGE_CARVE=0 FORGE_MODEL_MARGIN=0.02 FORGE_EDGE_VETO=0.015 FORGE_WORKERS=9 FORGE_BUDGET_S=3000",
+ "leaderboard_commit": "0a1b0c9"
 }

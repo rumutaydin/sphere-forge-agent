@@ -99,3 +99,28 @@ Answered on 11 Nov:
 | [Text2CAD-Bench](https://arxiv.org/html/2605.18430v1) | why sweep, loft and shell fail to build |
 | [text-to-cad plugin](https://github.com/earthtojake/text-to-cad) | build123d modelling guide; asserts inside the model |
 | [CadQuery docs](https://cadquery.readthedocs.io/) | the API the model writes |
+
+## Research pass, 12 Nov 15:00 UTC: is the model the lever?
+
+Read from abstracts, model cards and summaries, not full papers. Question: what gets the
+shape *inside* the outline right, which is all we have left to win.
+
+| Source | What it says for us |
+|---|---|
+| [Zero-to-CAD](https://arxiv.org/abs/2604.24479) (Autodesk, 2026) and its [2B model card](https://huggingface.co/mokau/Zero-To-CAD-Qwen3-VL-2B) | a VLM fine-tuned on 1M synthetic programs, 8 views in, CadQuery out, Apache 2.0. On real mechanical parts (ABC) its mean volume IoU is 0.377, and GPT-5.2 High gets 0.344. So neither a specialised nor a frontier general model gets shape right from views alone. Our hull is far above both on volume. |
+| [CADReasoner](https://www.alphaxiv.org/abs/2603.29847.md) (2026) | render-and-compare editing loop with overlays and offset vectors, fine-tuned 2B model: five rounds add 1.3 to 3.1 IoU points. Critic loops are worth little even when trained for it. |
+| [CADCodeVerify](https://arxiv.org/abs/2410.05340) (ICLR 2025) | question-and-answer visual feedback with GPT-4: about 7% lower point-cloud distance. Same order of gain. |
+| [Solid reconstruction from orthographic opaque views using incremental extrusion](https://research.polyu.edu.hk/en/publications/solid-reconstruction-from-orthographic-opaque-views-using-increme/) (Shum et al.) | exactly our input: six opaque orthographic line drawings. Each view is cut into regions by its lines; each region is extruded only as deep as the neighbouring view says; the pieces of a view pair are unioned; the three results are intersected. No model, no training. |
+| [Survey: solid reconstruction from engineering drawings](https://hal-univ-tlse3.archives-ouvertes.fr/INRIA/inria-00201896v1); Wesley and Markowsky 1981 | the wireframe family: match vertices and edges across views into a 3D wireframe, then find faces. Needs hidden lines, which our views do not have; the extrusion family does not. |
+| Space carving (Kutulakos and Seitz), [carved visual hulls](https://www.cs.toronto.edu/~kyros/pubs/00.ijcv.carve.pdf) | a silhouette hull cannot have concavities; only consistency of what the views show inside the outline recovers them. That is our edge score and depth sweep, stated as theory. |
+
+**Reading.** The model is not the biggest lever. Published results put even the strongest
+models far below a good geometric method on shape from views; the model's proven
+contribution here is +0.007. The largest untried idea is **incremental extrusion**: it is
+the general form of the two things that gave us real, repeatable gains (face carving,
+depth sweep, +0.04 to +0.075 per part), it uses the six axis views pairwise instead of
+needing an isometric view that happens to see the face, and it targets exactly what parts
+5, 7 and 9 lack (trays, pockets, levels). Task T11 in the plan.
+
+Possible side bet: the Zero-to-CAD 2B model as one more body source behind the edge veto.
+It expects its own 8 views at 256 px and scores 0.38 IoU off its distribution, so low priority.

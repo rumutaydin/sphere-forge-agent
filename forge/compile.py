@@ -507,7 +507,7 @@ def body_sources(task) -> list[tuple[str, object]]:
     return list(iter_body_sources(task))
 
 
-def iter_body_sources(task):
+def iter_body_sources(task, t_end: float | None = None):
     """The same, one at a time, so the caller can measure and write each body before the next
     (slower, riskier) source runs: a kernel crash in a late source then costs nothing."""
     import cadquery as cq
@@ -575,6 +575,25 @@ def iter_body_sources(task):
                 yield out[-1]
         except Exception as exc:
             print(f"{task.name}: body source hull-depth failed: {type(exc).__name__}: {exc}", flush=True)
+    # ... and with every flat lid the isometric views look through opened as a pocket
+    # (forge/layers.py: carve_pockets): trays and cavities whose floor is not a flat face.
+    if hulls and os.environ.get("FORGE_POCKETS", "on").lower() not in ("off", "0", "no", "false"):
+        try:
+            from .layers import carve_pockets
+
+            start = out[-1][1] if out[-1][0] in ("hull-faces", "hull-depth") else hulls[0]
+            log = []
+            import time
+
+            cap = time.monotonic() + float(os.environ.get("FORGE_POCKETS_S", "150"))
+            open_ = carve_pockets(start, task, log=log, t_end=min(cap, t_end) if t_end else cap)
+            for line in log:
+                print(f"{task.name}: pockets: {line}", flush=True)
+            if open_.val().Volume() < 0.999 * start.val().Volume():
+                out.append(("hull-pockets", open_))
+                yield out[-1]
+        except Exception as exc:
+            print(f"{task.name}: body source hull-pockets failed: {type(exc).__name__}: {exc}", flush=True)
 
 
 # --- measure, rank, write --------------------------------------------------------------
@@ -657,7 +676,7 @@ def compile_part(task, out_dir: str | Path, sources=None, publish: str | Path | 
         return row
 
     bodies = []
-    for name, body in (sources if sources is not None else iter_body_sources(task)):
+    for name, body in (sources if sources is not None else iter_body_sources(task, t_end)):
         bodies.append((name, body))
         if not has_holes:
             add(name, body)
@@ -674,6 +693,11 @@ def compile_part(task, out_dir: str | Path, sources=None, publish: str | Path | 
         # the hole-count search costs many kernel runs: only on the best body, and on a revolve
         ranked = sorted(rows, key=lambda r: -r["estimate"])
         todo = [ranked[0]["name"].split("+")[0]] + [n for n, _ in bodies if n == "revolve"]
+        if todo[0] == "hull-pockets":
+            # a pocket can swallow the mouth of a bore and spoil the search: the body it was cut
+            # from gets the search too, so the pockets must still win with the bores in
+            before = [n for n, _ in bodies if n in ("hull5", "hull3", "hull-faces", "hull-depth")]
+            todo = before[-1:] + todo        # the proven body first: if time runs out, it is the one that got its bores
         for name in dict.fromkeys(todo):
             log: list[str] = []
             try:

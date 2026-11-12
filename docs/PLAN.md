@@ -194,6 +194,70 @@ Measure the surface term on `scripts/bench_nomodel.py`.
 - [ ] Brev credit lasts through judging; instance not stopped after the address is handed over
 - [ ] three slides: approach (code first, model second), numbers (0.32 → 0.87), cost (a minute per run without the model)
 
+## Do not forget before the freeze (agreed 12 Nov, 14:40 UTC; 17 hours left then)
+
+The ranking is decided on nine hidden parts, run by the organisers from our image against
+our endpoint. Each of these can cost everything, and none needs new research:
+
+- [ ] `main` holds the configuration we want to ship (today: approach `12`, 0.871, one real Docker run)
+- [ ] the model endpoint is **public** (today it is only reachable through Robin's SSH tunnel),
+      the handover env file has the public address, tested from a machine outside the tunnel
+- [ ] asked the organisers: do the hidden parts come with `facts.json`? (without it pass 1 has no bounding box)
+- [ ] asked the organisers: how many CPU cores does the container get? then `docker run --cpus <n>` once
+- [ ] the instance that serves the final model stays up, with credit, through judging
+- [ ] if a second model is adopted: it beat the 27B on a submission first, and the 27B stays up until then
+
+Where the points are (after 10 submissions): floor 0.856, best 0.871, best value per part
+0.877. Headroom is the interior shape of parts 6 (0.685), 7 (0.706), 5 (0.838), 9 (0.831).
+
+### T11. Incremental extrusion: depth for every region of every view (next, no GPU)
+
+**Built 12 Nov as `forge/layers.py: carve_pockets`** (body source `hull-pockets`, switches
+`FORGE_POCKETS`, `FORGE_POCKETS_S` 150, `FORGE_POCKET_DEPTH` 0.75). Splitting a view into
+regions by its strokes does not work on our views (strokes are 1 px and leak; part 7's top
+view came out as one region). The same idea from the other side does: in an isometric view
+all flat faces with one normal have one shade, so where our body has a flat lid and the
+view shows another shade, the lid is not there. The opening is cut with straight walls to
+the depth where the view draws the wall/floor line, or else to 0.75 of the deepest cut that
+keeps the part whole; kept only if solid, hole count, silhouettes and volume hold and the
+line drawing improves in the view facing the opening. Results (estimate, not leaderboard):
+part 7 0.618 -> 0.658 (volume x1.89 -> x1.70, tray open); other parts unchanged; 12
+reference parts 0.949 -> 0.949. Not yet on the leaderboard. Open: the depth guess (0.75) is
+a prior, try 0.9 on a submission; part 9's top opening (5886 mm2) is found but refused;
+part 5's back openings break the hole count.
+
+The general form of face carving and the depth sweep; see the research pass of 12 Nov in
+`docs/RESEARCH.md`. Our hull extrudes each view's **outline** through the whole box. The
+classic method (Shum et al.) extrudes each **region** of a view (the areas its strokes cut
+it into) only as far as the neighbouring views allow, unions the regions of a view pair,
+and intersects the three. For us: for each region of an axis view, candidate depths are
+the positions of strokes in the two side-on views within that region's span (a face that
+is seen head-on in one view is an edge line in the views beside it); choose per region by
+the edge score and the plain-sight test, cut, check as every cut is checked. Measure on
+`scripts/bench_layers.py` first (enclosure, elbow, loft adapter have answers), then the
+nine practice parts. Expected to matter on parts 5, 7 and 9 (trays, pockets, levels).
+
+### T12. Feedback loop: the model sees our render beside the target (GPU)
+
+From the two-model proposal of 12 Nov (vision model -> JSON -> coding model -> sandbox ->
+render -> back to the vision model). Most of that chain we have or have measured as not
+worth it (see the table in `docs/RESEARCH.md` once written up: facts give dimensions and
+holes exactly, code errors are already 2 of 21, cut lists summed to zero). The one piece
+not yet tested fairly is the loop: rounds were tried before the edge score existed, so a
+bad revision could not be told from a good one.
+
+Test: `FORGE_ROUNDS=1` (then 2) on top of the clean configuration, only for parts whose
+no-model edge score is low (the weak ones here are 6, 7, 9; choose by a threshold on the
+edge score, never by part number). Each round shows the model the eight target views and
+our render of the current part in the same views (`forge/vision.py: diff_sheet` or
+`forge/render.py: render_organiser_style`), and asks for a changed helper program. A
+revision replaces the current part only if the estimate does not fall, the dimensions are
+not worse and the edge score does not fall (`FORGE_EDGE_VETO`). Report: how many revisions
+pass the veto, the wall-clock per round (one hour limit for the whole run), and the
+**leaderboard** values of the revised parts, since the estimate cannot rank model bodies.
+Expect little: published critic loops gain 1-3 points of overlap over five rounds. Stop
+after one submission if no part moves by more than 0.02.
+
 ## Rules that came out of today
 
 - `main` receives submission commits only; work on `<track>/<idea>` branches off `main`.
