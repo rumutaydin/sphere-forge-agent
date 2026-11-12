@@ -212,6 +212,20 @@ Where the points are (after 10 submissions): floor 0.856, best 0.871, best value
 
 ### T11. Incremental extrusion: depth for every region of every view (next, no GPU)
 
+**Built 12 Nov as `forge/layers.py: carve_pockets`** (body source `hull-pockets`, switches
+`FORGE_POCKETS`, `FORGE_POCKETS_S` 150, `FORGE_POCKET_DEPTH` 0.75). Splitting a view into
+regions by its strokes does not work on our views (strokes are 1 px and leak; part 7's top
+view came out as one region). The same idea from the other side does: in an isometric view
+all flat faces with one normal have one shade, so where our body has a flat lid and the
+view shows another shade, the lid is not there. The opening is cut with straight walls to
+the depth where the view draws the wall/floor line, or else to 0.75 of the deepest cut that
+keeps the part whole; kept only if solid, hole count, silhouettes and volume hold and the
+line drawing improves in the view facing the opening. Results (estimate, not leaderboard):
+part 7 0.618 -> 0.658 (volume x1.89 -> x1.70, tray open); other parts unchanged; 12
+reference parts 0.949 -> 0.949. Not yet on the leaderboard. Open: the depth guess (0.75) is
+a prior, try 0.9 on a submission; part 9's top opening (5886 mm2) is found but refused;
+part 5's back openings break the hole count.
+
 The general form of face carving and the depth sweep; see the research pass of 12 Nov in
 `docs/RESEARCH.md`. Our hull extrudes each view's **outline** through the whole box. The
 classic method (Shum et al.) extrudes each **region** of a view (the areas its strokes cut

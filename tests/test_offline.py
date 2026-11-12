@@ -236,3 +236,35 @@ def test_a_body_with_the_wrong_volume_is_sent_back(plate, task, tmp_path):
     assert "volume off" in log[0] and "volume off" not in log[1]
     assert "material is missing" in llm.calls[1][1][-1]["text"]
     assert score(summary["step"], plate.step_path)["score"] > 0.99
+
+
+def test_a_tray_with_a_curved_floor_is_opened(tmp_path):
+    """No outline shows a tray, and its floor is not a flat face; the isometric view still shows
+    that the lid of the silhouette body is not there."""
+    import cadquery as cq
+
+    from forge.layers import carve_pockets, contradicted_faces
+    from forge.geometry import shape_to_mesh
+    from forge.render import render_organiser_views
+
+    block = "import cadquery as cq\nresult = cq.Workplane('XY').box(80, 50, 30, centered=False)\n"
+    tray = get_backend().execute(
+        block + "result = result.cut(cq.Workplane('XY').box(60, 30, 12, centered=False).translate((10, 10, 18)))\n"
+        "result = result.cut(cq.Workplane('YZ').circle(13).extrude(60).translate((10, 25, 20)))\n", tmp_path / "t")
+    assert tray.ok and not tray.error
+    case = tmp_path / "in" / "test_case_1"
+    case.mkdir(parents=True)
+    shape = cq.importers.importStep(str(tray.step_path)).val()
+    render_organiser_views(shape, case / "images", [80, 50, 30], px=512)
+    (case / "description.md").write_text("A block with a tray.")
+    (case / "facts.json").write_text(json.dumps(facts_from_measure(tray.measure)))
+    task = load_tasks(tmp_path / "in")[0]
+    lid = cq.Workplane("XY").box(80, 50, 30, centered=False)
+    found = contradicted_faces(shape_to_mesh(lid.val()), task)
+    assert [o["stem"] for o in found] == ["view_4_top"]
+    assert abs(found[0]["mask"].sum() / (512 - 2 * 9.75) ** 2 * 80 ** 2 - 60 * 30) < 0.25 * 60 * 30
+    log: list[str] = []
+    opened = carve_pockets(lid, task, log=log).val()
+    assert opened.isValid() and len(opened.Solids()) == 1, log
+    assert shape.Volume() * 0.985 <= opened.Volume() < 80 * 50 * 30 - 60 * 30 * 6, log
+    assert carve_pockets(shape, task).val().Volume() > 0.999 * shape.Volume()      # the true part is left alone

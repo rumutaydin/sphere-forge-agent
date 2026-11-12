@@ -275,7 +275,7 @@ def render_edges(mesh, cam: Camera, origin=None, crease_deg: float = 28.0, depth
     return edges, mask
 
 
-def edge_score(step_or_mesh, task, tol_px: float = 3.0, inside_px: int = 5) -> dict:
+def edge_score(step_or_mesh, task, tol_px: float = 3.0, inside_px: int = 5, views=None) -> dict:
     """How well the line drawing of our part matches the strokes of the views.
 
     Per view an F-score: the share of the target's strokes that have one of our edges within
@@ -290,7 +290,7 @@ def edge_score(step_or_mesh, task, tol_px: float = 3.0, inside_px: int = 5) -> d
     size = box_size(task.facts)
     per = {}
     for view in task.views:
-        if view.stem not in VIEWS:
+        if view.stem not in VIEWS or (views is not None and view.stem not in views):
             continue
         target = target_strokes(view)
         cam = Camera(view.stem, size, target.shape[0])
