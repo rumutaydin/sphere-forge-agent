@@ -16,7 +16,7 @@ A new session can start from this page alone.
 | the same with helper-API bodies and cut lists (`09`) | 0.863 |
 | radial grooves on part 6 (`12`) | 0.871 |
 | pockets where a view contradicts a flat lid (`14`, **our best, on `main`**) | **0.877** |
-| best value per part across all submissions | 0.883 (a ceiling, not a run) |
+| best value per part across all submissions | 0.882 (a ceiling, not a run) |
 
 Dimensions and holes are exact on all nine parts. Everything left is **shape inside
 the outline**, and almost all of it is in three parts: 6 (0.61–0.66), 7 (0.68–0.71),
