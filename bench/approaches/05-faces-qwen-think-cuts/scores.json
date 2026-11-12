@@ -1,7 +1,7 @@
 {
  "what": "As 04 plus the model pass with thinking on (medium, 16k tokens), 2 bodies + 1 cut list per part. Model won on 2,4,5,6,7,8 (cut lists on 5,6,7,8). 1275 s wall clock.",
  "n_cases": 9,
- "leaderboard": null,
+ "leaderboard": 0.87,
  "mean_estimate": 0.8137,
  "holes_right": 9,
  "cases": {
@@ -13,7 +13,8 @@
    "holes": 1.0,
    "volume_ratio": 0.999,
    "area_ratio": 1.001,
-   "silhouette_iou": 0.9939
+   "silhouette_iou": 0.9939,
+   "leaderboard": 0.993
   },
   "test_case_2": {
    "valid": true,
@@ -23,7 +24,8 @@
    "holes": 1.0,
    "volume_ratio": 1.042,
    "area_ratio": 0.968,
-   "silhouette_iou": 0.9761
+   "silhouette_iou": 0.9761,
+   "leaderboard": 0.939
   },
   "test_case_3": {
    "valid": true,
@@ -33,7 +35,8 @@
    "holes": 1.0,
    "volume_ratio": 0.996,
    "area_ratio": 0.997,
-   "silhouette_iou": 0.9981
+   "silhouette_iou": 0.9981,
+   "leaderboard": 0.997
   },
   "test_case_4": {
    "valid": true,
@@ -43,7 +46,8 @@
    "holes": 1.0,
    "volume_ratio": 1.043,
    "area_ratio": 1.031,
-   "silhouette_iou": 0.9857
+   "silhouette_iou": 0.9857,
+   "leaderboard": 0.913
   },
   "test_case_5": {
    "valid": true,
@@ -53,7 +57,8 @@
    "holes": 1.0,
    "volume_ratio": 1.121,
    "area_ratio": 0.943,
-   "silhouette_iou": 0.9936
+   "silhouette_iou": 0.9936,
+   "leaderboard": 0.84
   },
   "test_case_6": {
    "valid": true,
@@ -63,7 +68,8 @@
    "holes": 1.0,
    "volume_ratio": 2.404,
    "area_ratio": 0.554,
-   "silhouette_iou": 0.9935
+   "silhouette_iou": 0.9935,
+   "leaderboard": 0.658
   },
   "test_case_7": {
    "valid": true,
@@ -73,7 +79,8 @@
    "holes": 1.0,
    "volume_ratio": 1.711,
    "area_ratio": 0.956,
-   "silhouette_iou": 0.9769
+   "silhouette_iou": 0.9769,
+   "leaderboard": 0.708
   },
   "test_case_8": {
    "valid": true,
@@ -83,7 +90,8 @@
    "holes": 1.0,
    "volume_ratio": 1.064,
    "area_ratio": 0.943,
-   "silhouette_iou": 0.9865
+   "silhouette_iou": 0.9865,
+   "leaderboard": 0.937
   },
   "test_case_9": {
    "valid": true,
@@ -93,8 +101,10 @@
    "holes": 1.0,
    "volume_ratio": 1.23,
    "area_ratio": 0.723,
-   "silhouette_iou": 0.9959
+   "silhouette_iou": 0.9959,
+   "leaderboard": 0.844
   }
  },
- "settings": "FORGE_DEPTH=off FORGE_THINKING=on FORGE_REASONING_EFFORT=medium FORGE_MAX_TOKENS=16000 FORGE_LLM_TIMEOUT_S=700 FORGE_CANDIDATES=2 FORGE_CARVE=1 FORGE_WORKERS=9 FORGE_BUDGET_S=3000"
+ "settings": "FORGE_DEPTH=off FORGE_THINKING=on FORGE_REASONING_EFFORT=medium FORGE_MAX_TOKENS=16000 FORGE_LLM_TIMEOUT_S=700 FORGE_CANDIDATES=2 FORGE_CARVE=1 FORGE_WORKERS=9 FORGE_BUDGET_S=3000",
+ "leaderboard_commit": "a75c44e"
 }
