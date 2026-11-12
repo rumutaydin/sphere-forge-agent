@@ -18,7 +18,7 @@ from pathlib import Path
 
 from .backends import CadBackend
 from .compile import publish_file
-from .llm import LLM
+from .llm import LLM, text_block
 from .stages.build import floor_note, generate, run_with_repair
 from .stages.carve import apply_cuts, propose_cuts
 from .stages.understand import task_content
@@ -38,8 +38,9 @@ def score_of(check: dict) -> float:
 
 class Agent:
     def __init__(self, llm: LLM, backend: CadBackend, n_candidates: int = 2, repairs: int = 2, rounds: int = 0,
-                 n_carve: int = 0, margin: float = 0.02, edge_veto: float = 0.015):
+                 n_carve: int = 0, margin: float = 0.02, edge_veto: float = 0.015, vlm: LLM | None = None):
         self.llm, self.backend, self.n_carve, self.margin, self.edge_veto = llm, backend, n_carve, margin, edge_veto
+        self.vlm = vlm      # optional: a vision model describes the views, `llm` codes from text only
         self.n_candidates, self.repairs, self.rounds = n_candidates, repairs, rounds
 
     def fallback(self, task: Task, out_dir: Path) -> Path | None:
@@ -130,8 +131,16 @@ class Agent:
             return cand
 
         try:
-            blocks = task_content(task)
             note = floor_note(floor, task.facts)
+            if self.vlm is not None:
+                from .stages.build import describe
+
+                words = describe(self.vlm, task, note, deadline)
+                (out_dir / "description.txt").write_text(words)
+                blocks = task_content(task, with_views=False) + [
+                    text_block("CONSTRUCTION READ FROM THE EIGHT VIEWS by a colleague who saw them:\n" + words)]
+            else:
+                blocks = task_content(task)
             n_carve = self.n_carve if floor and floor["check"].get("volume_ratio", 1.0) > 1.04 and task.dir else 0
             with ThreadPoolExecutor(max(self.n_candidates + n_carve, 1)) as pool:
                 jobs = [pool.submit(work, i) for i in range(self.n_candidates)]

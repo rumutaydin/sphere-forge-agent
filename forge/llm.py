@@ -46,11 +46,13 @@ class OpenAICompatLLM(LLM):
     FORGE_TEMPERATURE, FORGE_SEED  sampling, for repeatable runs
     """
 
-    def __init__(self, model: str | None = None, timeout: float | None = None):
+    def __init__(self, model: str | None = None, timeout: float | None = None, base_url: str | None = None,
+                 api_key: str | None = None):
         from openai import OpenAI
 
         self.timeout = timeout or float(os.environ.get("FORGE_LLM_TIMEOUT_S", "300"))
-        self.client = OpenAI(timeout=self.timeout, max_retries=1)   # one retry: a dropped connection must not cost a candidate
+        kw = {k: v for k, v in (("base_url", base_url), ("api_key", api_key)) if v}
+        self.client = OpenAI(timeout=self.timeout, max_retries=1, **kw)   # one retry: a dropped connection must not cost a candidate
         self.model = model or os.environ["OPENAI_MODEL"]
         self.max_tokens = int(os.environ.get("FORGE_MAX_TOKENS", "6000"))
         self.extra: dict = {}

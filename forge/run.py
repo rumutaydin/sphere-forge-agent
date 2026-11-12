@@ -50,7 +50,19 @@ def make_agent(llm=None) -> Agent:
         n_carve=int(os.environ.get("FORGE_CARVE", "0")),
         margin=float(os.environ.get("FORGE_MODEL_MARGIN", "0.02")),
         edge_veto=float(os.environ.get("FORGE_EDGE_VETO", "0.015")),
+        vlm=_vision_llm(),
     )
+
+
+def _vision_llm():
+    """A second endpoint for a vision model (FORGE_VISION_BASE_URL / _API_KEY / _MODEL), or None."""
+    model = os.environ.get("FORGE_VISION_MODEL", "").strip()
+    if not model:
+        return None
+    from .llm import OpenAICompatLLM
+
+    return OpenAICompatLLM(model=model, base_url=os.environ.get("FORGE_VISION_BASE_URL") or None,
+                           api_key=os.environ.get("FORGE_VISION_API_KEY") or None)
 
 
 def pass1(task: Task, work: Path, out_file: Path, budget_s: float) -> dict | None:

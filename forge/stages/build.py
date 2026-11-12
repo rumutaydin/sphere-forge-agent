@@ -105,6 +105,34 @@ def generate(llm: LLM, backend: CadBackend, task_blocks: list[dict], note: str =
     return ""
 
 
+DESCRIBE_SYSTEM = """\
+You look at eight orthographic views of a mechanical part (shaded, edges drawn as black lines)
+and describe its construction for an engineer who cannot see the pictures and will model it from
+your words alone. Frame: millimetres, minimum corner of the bounding box at the origin; the view
+notes say which way each view looks. Numbers marked MEASURED are exact; trust them over the brief.
+
+Answer under these headings, short and concrete, with numbers in mm wherever you can read or
+derive them:
+1. PIECES: the main masses (blocks, plates, discs, cylinders, cones, ribs, bosses, fins), each
+   with its position and size, and for each whether it is SOLID or THIN-WALLED / HOLLOW.
+2. HOLLOWS AND OPENINGS: every pocket, tray, cavity, slot, groove or gap between fins: where it
+   opens, how deep, wall and floor thickness, and which view shows it.
+3. PATTERNS: repeated features, their count, spacing and axis.
+4. VOLUME CHECK: a rough sum of the solid pieces' volumes against the facts' volume, and what that
+   implies for wall thicknesses (a thin wall of thickness t has surface about 2 x volume / t).
+5. WHERE THE BRIEF IS WRONG: anything the views or the MEASURED lines contradict.
+No code."""
+
+
+def describe(vlm: LLM, task: Task, note: str = "", deadline: float | None = None) -> str:
+    """The vision model's written construction of the part, for a coder that sees no images."""
+    from .understand import task_content
+
+    content = task_content(task) + ([text_block(note)] if note else [])
+    left = _left(deadline)
+    return vlm.complete(DESCRIBE_SYSTEM, content, timeout=left)
+
+
 def finished(code: str, task: Task, hull: Path | None, holes: str) -> str:
     """The model's program plus the lines that finish it by code."""
     code = code.split(FINISH_MARK)[0].rstrip()
