@@ -47,7 +47,14 @@ def genus(mesh: trimesh.Trimesh) -> int:
     V - E + F = 2 * (bodies - genus). Needs a watertight mesh; returns -1 if it is not.
     """
     if not mesh.is_watertight:
-        return -1
+        # Revolved solids tessellate with duplicate vertices and zero-area triangles at the
+        # pole on the axis. Weld them before giving up.
+        mesh = mesh.copy()
+        mesh.merge_vertices(digits_vertex=5)
+        mesh.update_faces(mesh.nondegenerate_faces())
+        mesh.remove_unreferenced_vertices()
+        if not mesh.is_watertight:
+            return -1
     return int(round(mesh.body_count - mesh.euler_number / 2))
 
 

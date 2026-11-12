@@ -20,7 +20,7 @@ from PIL import Image, ImageDraw
 
 from .render import VIEWS, _basis
 
-MARGIN_PX = 19.5          # measured on the practice views: the box spans pixels 19..1004 of 1024
+MARGIN_PX = 19.5          # fitted on the practice views (1024 px): the bounding box is fitted into 985 px
 AXIS_VIEWS = ("view_0_front", "view_2_left", "view_4_top")   # one of each mirror pair
 
 
@@ -36,19 +36,20 @@ class Camera:
         a, b = corners @ self.r, corners @ self.u
         self.c_r, self.c_u = (a.min() + a.max()) / 2, (b.min() + b.max()) / 2
         self.w_mm, self.h_mm = np.ptp(a), np.ptp(b)
-        self.scale = (image_px - 1 - 2 * MARGIN_PX) / max(self.w_mm, self.h_mm)   # px per mm
-        self.mid = (image_px - 1) / 2
+        margin = MARGIN_PX * image_px / 1024
+        self.scale = (image_px - 2 * margin) / max(self.w_mm, self.h_mm)   # px per mm
+        self.mid = image_px / 2          # pixel-edge coordinates: pixel i covers [i, i + 1)
 
     def to_px(self, pts_mm: np.ndarray) -> np.ndarray:
-        """(n, 3) mm in the facts frame -> (n, 2) pixel (x, y)."""
+        """(n, 3) mm in the facts frame -> (n, 2) pixel (x, y), pixel-edge coordinates."""
         x = self.mid + ((pts_mm @ self.r) - self.c_r) * self.scale
         y = self.mid - ((pts_mm @ self.u) - self.c_u) * self.scale
         return np.stack([x, y], axis=1)
 
     def plane_mm(self, xy_px: np.ndarray) -> np.ndarray:
-        """(n, 2) pixels -> (n, 2) coordinates (along r, along u) in mm."""
-        a = (xy_px[:, 0] - self.mid) / self.scale + self.c_r
-        b = (self.mid - xy_px[:, 1]) / self.scale + self.c_u
+        """(n, 2) pixel-centre coordinates (pixel i is at i) -> (n, 2) coordinates (along r, along u) in mm."""
+        a = (xy_px[:, 0] + 0.5 - self.mid) / self.scale + self.c_r
+        b = (self.mid - xy_px[:, 1] - 0.5) / self.scale + self.c_u
         return np.stack([a, b], axis=1)
 
 
@@ -58,9 +59,13 @@ def box_size(facts: dict) -> np.ndarray:
 
 
 def image_mask(path: str | Path) -> np.ndarray:
-    """Part against the white background. Tan fill and black strokes are both part."""
+    """Part against the white background. Tan fill and black strokes are both part. The outline
+    stroke lies about one pixel outside the true edge, so the mask is eroded by one pixel
+    (measured on a part we know exactly: IoU 0.985 without, 0.997 with)."""
+    from scipy import ndimage
+
     rgb = np.asarray(Image.open(path).convert("RGB"))
-    return rgb.min(axis=2) < 235
+    return ndimage.binary_erosion(rgb.min(axis=2) < 235, iterations=1)
 
 
 def target_masks(task) -> dict[str, np.ndarray]:
