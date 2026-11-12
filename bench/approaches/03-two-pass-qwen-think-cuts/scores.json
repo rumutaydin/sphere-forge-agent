@@ -1,7 +1,7 @@
 {
  "what": "Pass 1 + model pass with thinking on (medium, 16k tokens), 2 bodies + 1 cut list per part. Model won on 1,2,4,5,6,8,9. 1691 s wall clock.",
  "n_cases": 9,
- "leaderboard": null,
+ "leaderboard": 0.853,
  "mean_estimate": 0.8066,
  "holes_right": 9,
  "cases": {
@@ -13,7 +13,8 @@
    "holes": 1.0,
    "volume_ratio": 0.984,
    "area_ratio": 0.996,
-   "silhouette_iou": 0.9905
+   "silhouette_iou": 0.9905,
+   "leaderboard": 0.976
   },
   "test_case_2": {
    "valid": true,
@@ -23,7 +24,8 @@
    "holes": 1.0,
    "volume_ratio": 1.0,
    "area_ratio": 1.395,
-   "silhouette_iou": 0.9886
+   "silhouette_iou": 0.9886,
+   "leaderboard": 0.958
   },
   "test_case_3": {
    "valid": true,
@@ -33,7 +35,8 @@
    "holes": 1.0,
    "volume_ratio": 0.996,
    "area_ratio": 0.997,
-   "silhouette_iou": 0.9981
+   "silhouette_iou": 0.9981,
+   "leaderboard": 0.997
   },
   "test_case_4": {
    "valid": true,
@@ -43,7 +46,8 @@
    "holes": 1.0,
    "volume_ratio": 1.05,
    "area_ratio": 1.011,
-   "silhouette_iou": 0.9809
+   "silhouette_iou": 0.9809,
+   "leaderboard": 0.915
   },
   "test_case_5": {
    "valid": true,
@@ -53,7 +57,8 @@
    "holes": 1.0,
    "volume_ratio": 1.214,
    "area_ratio": 0.832,
-   "silhouette_iou": 0.9936
+   "silhouette_iou": 0.9936,
+   "leaderboard": 0.848
   },
   "test_case_6": {
    "valid": true,
@@ -63,7 +68,8 @@
    "holes": 1.0,
    "volume_ratio": 1.783,
    "area_ratio": 0.85,
-   "silhouette_iou": 0.9251
+   "silhouette_iou": 0.9251,
+   "leaderboard": 0.621
   },
   "test_case_7": {
    "valid": true,
@@ -73,7 +79,8 @@
    "holes": 1.0,
    "volume_ratio": 1.957,
    "area_ratio": 0.934,
-   "silhouette_iou": 0.9851
+   "silhouette_iou": 0.9851,
+   "leaderboard": 0.7
   },
   "test_case_8": {
    "valid": true,
@@ -83,7 +90,8 @@
    "holes": 1.0,
    "volume_ratio": 1.037,
    "area_ratio": 1.021,
-   "silhouette_iou": 0.9872
+   "silhouette_iou": 0.9872,
+   "leaderboard": 0.93
   },
   "test_case_9": {
    "valid": true,
@@ -93,8 +101,10 @@
    "holes": 1.0,
    "volume_ratio": 1.442,
    "area_ratio": 0.715,
-   "silhouette_iou": 0.9948
+   "silhouette_iou": 0.9948,
+   "leaderboard": 0.733
   }
  },
- "settings": "FORGE_DEPTH=off FORGE_FACES=off FORGE_THINKING=on FORGE_REASONING_EFFORT=medium FORGE_MAX_TOKENS=16000 FORGE_LLM_TIMEOUT_S=700 FORGE_CANDIDATES=2 FORGE_CARVE=1 FORGE_WORKERS=9 FORGE_BUDGET_S=3000"
+ "settings": "FORGE_DEPTH=off FORGE_FACES=off FORGE_THINKING=on FORGE_REASONING_EFFORT=medium FORGE_MAX_TOKENS=16000 FORGE_LLM_TIMEOUT_S=700 FORGE_CANDIDATES=2 FORGE_CARVE=1 FORGE_WORKERS=9 FORGE_BUDGET_S=3000",
+ "leaderboard_commit": "c349719"
 }
