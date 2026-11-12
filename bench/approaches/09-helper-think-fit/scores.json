@@ -1,0 +1,100 @@
+{
+ "what": "As 08, with the through-hole search applied to the model bodies that won on parts 5 and 7 (now part of the pipeline: a model body whose hole count is off gets the search). Parts 5 and 7 were re-finished offline from the run's own programs; the rest is run 08 unchanged.",
+ "n_cases": 9,
+ "leaderboard": null,
+ "mean_estimate": 0.8339,
+ "holes_right": 9,
+ "cases": {
+  "test_case_1": {
+   "valid": true,
+   "estimate": 0.9144,
+   "self_score": 0.9994,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.999,
+   "area_ratio": 1.001,
+   "silhouette_iou": 0.9939
+  },
+  "test_case_2": {
+   "valid": true,
+   "estimate": 0.9075,
+   "self_score": 0.9243,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.993,
+   "area_ratio": 1.325,
+   "silhouette_iou": 0.9886
+  },
+  "test_case_3": {
+   "valid": true,
+   "estimate": 0.9153,
+   "self_score": 0.998,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.996,
+   "area_ratio": 0.997,
+   "silhouette_iou": 0.9981
+  },
+  "test_case_4": {
+   "valid": true,
+   "estimate": 0.8839,
+   "self_score": 0.9816,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.043,
+   "area_ratio": 1.02,
+   "silhouette_iou": 0.9841
+  },
+  "test_case_5": {
+   "valid": true,
+   "estimate": 0.9146,
+   "self_score": 0.9929,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.001,
+   "area_ratio": 1.023,
+   "silhouette_iou": 0.994
+  },
+  "test_case_6": {
+   "valid": true,
+   "estimate": 0.609,
+   "self_score": 0.7656,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.834,
+   "area_ratio": 0.674,
+   "silhouette_iou": 0.917
+  },
+  "test_case_7": {
+   "valid": true,
+   "estimate": 0.6705,
+   "self_score": 0.862,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.561,
+   "area_ratio": 0.899,
+   "silhouette_iou": 0.9353
+  },
+  "test_case_8": {
+   "valid": true,
+   "estimate": 0.889,
+   "self_score": 0.9783,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.038,
+   "area_ratio": 0.964,
+   "silhouette_iou": 0.9881
+  },
+  "test_case_9": {
+   "valid": true,
+   "estimate": 0.8008,
+   "self_score": 0.8605,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.231,
+   "area_ratio": 0.722,
+   "silhouette_iou": 0.996
+  }
+ },
+ "settings": "FORGE_THINKING=on FORGE_REASONING_EFFORT=medium FORGE_MAX_TOKENS=16000 FORGE_LLM_TIMEOUT_S=700 FORGE_CANDIDATES=2 FORGE_CARVE=1 FORGE_WORKERS=9 FORGE_BUDGET_S=3000"
+}

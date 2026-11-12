@@ -152,6 +152,12 @@ def run_with_repair(llm: LLM, backend: CadBackend, cand: Candidate, task: Task, 
                 best = (res, check, holes)
             if not (res.ok and not res.error):
                 break       # the body itself failed; the other hole variant will too
+        if has_bores and best[0].ok and not best[0].error and best[1].get("holes", 1.0) < 1.0:
+            # neither plain variant hits the through-hole count: run the search (20% of the score)
+            res, check = _execute(backend, cand, task, finished(cand.code, task, hull, "fit"),
+                                  f"try{len(cand.log)}_fit", timeout=300)
+            if res.ok and not res.error and check.get("estimate", -1) > best[1].get("estimate", -1):
+                best = (res, check, "fit")
         res, check = best[0], best[1]
         ran = res.ok and not res.error
         problem = ""

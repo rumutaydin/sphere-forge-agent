@@ -680,7 +680,14 @@ def finish_body(result, facts_path: str, hull: str | None = None, holes: str = "
         trimmed = _largest_solid(shape.intersect(cq.importers.importStep(hull).val()))
         if trimmed.isValid() and trimmed.Volume() > 0.5 * shape.Volume():
             shape = trimmed
-    if holes != "none":
+    if holes == "fit":
+        # the search that makes the through-hole count equal the facts (needs the views)
+        from .cases import load_tasks
+
+        task_dir = Path(facts_path).resolve().parent
+        task = load_tasks(task_dir.parent, [task_dir.name + "$"])[0]
+        shape = cut_holes_to_genus(cq.Workplane("XY").newObject([shape]), task)[0].val()
+    elif holes != "none":
         shape = cut_facts_holes(shape, facts, extend=(holes == "open")).val()
     return cq.Workplane("XY").newObject([shape])
 
