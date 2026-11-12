@@ -45,7 +45,52 @@ there is no excuse to lose these points.
 In the self-score mean a fallback box counts as 0, although it earns 0.2–0.4 on the
 leaderboard. Compare self-scores per part, not by the mean.
 
-## Approaches filed on 12 Nov (none submitted yet)
+## Leaderboard, 12 Nov: what the submissions taught us
+
+Per part, as the leaderboard reported them. Bold marks the best value seen for that part.
+
+| Submission | Mean | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| boxes (11 Nov) | 0.320 | 0.332 | 0.272 | 0.413 | 0.361 | 0.432 | 0.298 | 0.216 | 0.342 | 0.211 |
+| hand-picked model parts (11 Nov) | 0.658 | 0.862 | 0.879 | 0.997 | 0.731 | 0.709 | 0.633 | 0.216 | 0.687 | 0.211 |
+| `01-no-model` | 0.847 | 0.949 | 0.944 | **0.997** | 0.851 | **0.849** | 0.610 | 0.700 | 0.936 | 0.784 |
+| `06-no-model-depth` | 0.856 | 0.990 | 0.944 | **0.997** | 0.851 | 0.838 | 0.610 | 0.706 | 0.936 | 0.831 |
+| `03-two-pass-qwen-think-cuts` (floor: 01) | 0.853 | 0.976 | **0.958** | **0.997** | **0.915** | 0.848 | 0.621 | 0.700 | 0.930 | 0.733 |
+| `05-faces-qwen-think-cuts` (floor: 04) | **0.870** | **0.993** | 0.939 | **0.997** | 0.913 | 0.840 | **0.658** | **0.708** | **0.937** | **0.844** |
+
+Best value per part, taken across submissions, averages 0.873. That is a ceiling for what
+we have built so far, not a run we can reproduce.
+
+What each comparison shows:
+
+1. **Code alone beats yesterday's model-written parts by 0.19** (0.847 against 0.658),
+   and does it in a minute, the same way every time. The five parts that `06` did not
+   touch came back identical to three decimals.
+2. **Dimensions and holes are banked.** Both are exact on all nine in every submission
+   since `01`. Everything left to win is shape.
+3. **Face carving is a real gain where a bore face is seen head-on**: part 1 +0.041,
+   part 9 +0.047 (`06` against `01`).
+4. **Volume closer to the target does not prove a cut is right.** Part 5 went from
+   ×1.22 to ×1.13 of the target volume and lost 0.011. Our estimate predicted +0.04.
+5. **A model-written body is worth it on a part made of plain cylinders and blocks**:
+   part 4 (crankshaft) +0.064, and it repeated in a second run (0.915, 0.913). On part 1
+   it gains less than the face carving does; on part 2 it is within ±0.015; on part 6 it
+   gained 0.011 where our estimate predicted 0.13.
+6. **Model cut lists swing both ways.** On the `01` floor: part 9 −0.051, part 8 −0.006,
+   part 5 0, part 2 +0.014. On the carved floor: part 6 +0.048, part 9 +0.013, parts 5,
+   7 and 8 +0.001 to +0.002. Not clearly good or bad; they are accepted on volume and
+   silhouettes only, and point 4 says that is not enough.
+7. **The estimate reads 0.06–0.07 low and cannot rank a model result against a hull.**
+   It was right about the order of the no-model parts (6, 7 and 9 weakest) and wrong
+   about parts 5, 6 and 9 whenever a cut or a model body was involved. Decide between
+   configurations on leaderboard values.
+8. **Where the remaining points are:** part 6 (0.66), part 7 (0.71), then 5, 9 and 4
+   (0.84–0.91). Parts 1, 2, 3 and 8 are at 0.94–0.99 and have little left. Lifting 6 and
+   7 to 0.85 would add 0.04 to the mean; nothing else we know of is that large.
+9. **The model pass costs 20 minutes for about +0.014** over the no-model floor (0.870
+   against 0.856), most of it from parts 4 and 6.
+
+## Approaches filed on 12 Nov, with the local estimate
 
 Each row is a folder in `bench/approaches/` with nine STEP files. **"Estimate" is local**,
 not the leaderboard: `0.14 + 0.16 × holes + 0.62 × volume ratio × silhouette IoU`, fitted

@@ -11,11 +11,17 @@ minutes, with exact outer dimensions and the exact through-hole count on every p
 does that from the eight views (a visual hull) and `facts.json` (every bore). A second
 pass lets the model try to improve each part and keeps a model result only when our
 local estimate says it is better. Our local estimate of the leaderboard for the best
-set is about 0.8, against 0.658 submitted yesterday and 0.320 for boxes. **Nothing from
-tonight has been submitted**: the estimate is a stand-in, fitted on 16 files, and the
-first job this morning is to submit the filed approaches one at a time and read the real
-values. What remains hard is material hidden from every outline: hollow interiors, fins,
+set is about 0.8, against 0.658 submitted yesterday and 0.320 for boxes. The estimate is a stand-in fitted on 16 files; the morning's submissions (next section)
+give the real values. What remains hard is material hidden from every outline: hollow interiors, fins,
 sloped pockets (parts 6 and 7).
+
+## Leaderboard on 12 Nov (morning)
+
+Four submissions: no model 0.847, no model with face and depth carving 0.856, with the
+model pass 0.853 (old floor) and **0.870** (carved floor, our best). Per-part values and
+what each comparison taught us are in [SCOREBOARD.md](SCOREBOARD.md#leaderboard-12-nov-what-the-submissions-taught-us).
+The local estimate reads about 0.07 low and misjudges model results; decide on
+leaderboard values.
 
 ## What was built tonight
 
