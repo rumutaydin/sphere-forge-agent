@@ -1,0 +1,109 @@
+{
+ "inputs": "/Users/robin/Desktop/hack/artifacts/inputs",
+ "n_cases": 9,
+ "wall_clock_s": 1149.9361629486084,
+ "mean_estimate": 0.7934797838265661,
+ "mean_self_score": 0.9008567764880152,
+ "mean_score": null,
+ "cases": {
+  "test_case_1": {
+   "chosen": "hull-faces+holes",
+   "estimate": 0.9142398173363518,
+   "self_score": 0.9994243776603788,
+   "dimensions": 0.9999999999999991,
+   "holes": 1.0,
+   "volume_ratio": 0.9986786085080386,
+   "area_ratio": 1.0005977066799785,
+   "silhouette_iou": 0.9936352672145847,
+   "seconds": 65.17797517776489
+  },
+  "test_case_2": {
+   "chosen": "revolve",
+   "estimate": 0.8628364887447832,
+   "self_score": 0.9742543117756546,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.0856585934504874,
+   "area_ratio": 0.9930811593887007,
+   "silhouette_iou": 0.9873127892043917,
+   "seconds": 25.719195127487183
+  },
+  "test_case_3": {
+   "chosen": "revolve+holes",
+   "estimate": 0.9152685173146046,
+   "self_score": 0.9979700026426779,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.9958883278204558,
+   "area_ratio": 0.9973450143218043,
+   "silhouette_iou": 0.9980852790142203,
+   "seconds": 44.132346868515015
+  },
+  "test_case_4": {
+   "chosen": "hull5",
+   "estimate": 0.8245408005307043,
+   "self_score": 0.9200926691172355,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.1688584718547077,
+   "area_ratio": 1.1388138208186274,
+   "silhouette_iou": 0.9907787371058366,
+   "seconds": 55.77292013168335
+  },
+  "test_case_5": {
+   "chosen": "hull-faces+holes-fit",
+   "estimate": 0.8457873724479787,
+   "self_score": 0.9475646057760332,
+   "dimensions": 0.9999999999999974,
+   "holes": 1.0,
+   "volume_ratio": 1.1256758725782907,
+   "area_ratio": 0.9368601658405602,
+   "silhouette_iou": 0.9927505687018883,
+   "seconds": 1148.9754650592804
+  },
+  "test_case_6": {
+   "chosen": "revolve+holes",
+   "estimate": 0.4894321527061315,
+   "self_score": 0.613691903616877,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 3.234054601625656,
+   "area_ratio": 0.40309697103415015,
+   "silhouette_iou": 0.9933354512205548,
+   "seconds": 80.86763191223145
+  },
+  "test_case_7": {
+   "chosen": "hull-faces+holes-fit",
+   "estimate": 0.6157199741987247,
+   "self_score": 0.8305384540361207,
+   "dimensions": 0.9947429163854737,
+   "holes": 1.0,
+   "volume_ratio": 1.8975018813180455,
+   "area_ratio": 0.9116242023830397,
+   "silhouette_iou": 0.9773619514798189,
+   "seconds": 963.6680357456207
+  },
+  "test_case_8": {
+   "chosen": "hull-faces+holes-fit",
+   "estimate": 0.8729213527185575,
+   "self_score": 0.9636652762719917,
+   "dimensions": 0.9999999999999986,
+   "holes": 1.0,
+   "volume_ratio": 1.0675866284826938,
+   "area_ratio": 0.9421921176765465,
+   "silhouette_iou": 0.988243164456504,
+   "seconds": 675.171434879303
+  },
+  "test_case_9": {
+   "chosen": "hull-faces+holes-fit",
+   "estimate": 0.8005715784412581,
+   "self_score": 0.8605093874951673,
+   "dimensions": 0.9999999999999986,
+   "holes": 1.0,
+   "volume_ratio": 1.2305625256164194,
+   "area_ratio": 0.7223948110303843,
+   "silhouette_iou": 0.9955083682969188,
+   "seconds": 604.4713859558105
+  }
+ }
+}

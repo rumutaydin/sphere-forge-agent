@@ -119,3 +119,29 @@ def voxelize(mesh: trimesh.Trimesh, origin, pitch: float, shape) -> np.ndarray:
         np.add.at(toggle, (ix[hit], iy[hit], k), 1)
 
     return (np.cumsum(toggle, axis=2)[:, :, :nz] % 2).astype(bool)
+
+
+def brep_genus(shape) -> int:
+    """Through-hole count straight from the B-rep topology (Euler-Poincare), no tessellation:
+
+        V - E + F - (L - F) = 2 * (shells - genus)      L = loops (wires), degenerate edges not counted
+
+    Hundreds of times faster than meshing a part with many faces. Returns -1 if the count does
+    not come out whole. Check it against genus() once per part before relying on it.
+    """
+    from OCP.BRep import BRep_Tool
+    from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_SHELL, TopAbs_VERTEX, TopAbs_WIRE
+    from OCP.TopExp import TopExp
+    from OCP.TopoDS import TopoDS
+    from OCP.TopTools import TopTools_IndexedMapOfShape
+
+    def count(kind):
+        m = TopTools_IndexedMapOfShape()
+        TopExp.MapShapes_s(shape.wrapped, kind, m)
+        return m
+
+    edges = count(TopAbs_EDGE)
+    n_e = sum(1 for i in range(1, edges.Extent() + 1) if not BRep_Tool.Degenerated_s(TopoDS.Edge_s(edges.FindKey(i))))
+    v, f, w, s = (count(k).Extent() for k in (TopAbs_VERTEX, TopAbs_FACE, TopAbs_WIRE, TopAbs_SHELL))
+    twice = 2 * s - (v - n_e + f - (w - f))
+    return twice // 2 if twice % 2 == 0 and twice >= 0 else -1

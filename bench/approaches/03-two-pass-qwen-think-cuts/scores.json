@@ -1,0 +1,99 @@
+{
+ "what": "Pass 1 + model pass with thinking on (medium, 16k tokens), 2 bodies + 1 cut list per part. Model won on 1,2,4,5,6,8,9. 1691 s wall clock.",
+ "n_cases": 9,
+ "leaderboard": null,
+ "mean_estimate": 0.8066,
+ "holes_right": 9,
+ "cases": {
+  "test_case_1": {
+   "valid": true,
+   "estimate": 0.9031,
+   "self_score": 0.9941,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.984,
+   "area_ratio": 0.996,
+   "silhouette_iou": 0.9905
+  },
+  "test_case_2": {
+   "valid": true,
+   "estimate": 0.9117,
+   "self_score": 0.9149,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.0,
+   "area_ratio": 1.395,
+   "silhouette_iou": 0.9886
+  },
+  "test_case_3": {
+   "valid": true,
+   "estimate": 0.9153,
+   "self_score": 0.998,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.996,
+   "area_ratio": 0.997,
+   "silhouette_iou": 0.9981
+  },
+  "test_case_4": {
+   "valid": true,
+   "estimate": 0.8783,
+   "self_score": 0.9826,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.05,
+   "area_ratio": 1.011,
+   "silhouette_iou": 0.9809
+  },
+  "test_case_5": {
+   "valid": true,
+   "estimate": 0.8064,
+   "self_score": 0.8968,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.214,
+   "area_ratio": 0.832,
+   "silhouette_iou": 0.9936
+  },
+  "test_case_6": {
+   "valid": true,
+   "estimate": 0.6207,
+   "self_score": 0.8233,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.783,
+   "area_ratio": 0.85,
+   "silhouette_iou": 0.9251
+  },
+  "test_case_7": {
+   "valid": true,
+   "estimate": 0.6084,
+   "self_score": 0.8325,
+   "dimensions": 0.995,
+   "holes": 1.0,
+   "volume_ratio": 1.957,
+   "area_ratio": 0.934,
+   "silhouette_iou": 0.9851
+  },
+  "test_case_8": {
+   "valid": true,
+   "estimate": 0.889,
+   "self_score": 0.9829,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.037,
+   "area_ratio": 1.021,
+   "silhouette_iou": 0.9872
+  },
+  "test_case_9": {
+   "valid": true,
+   "estimate": 0.7266,
+   "self_score": 0.8225,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.442,
+   "area_ratio": 0.715,
+   "silhouette_iou": 0.9948
+  }
+ }
+}

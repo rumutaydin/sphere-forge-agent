@@ -132,6 +132,7 @@ def bores(task) -> list[dict]:
 
     facts, size = task.facts, box_size(task.facts)
     out = []
+    groups_seen: list[int] = []
     for group in facts.get("cylindrical_holes_and_bores") or []:
         direction, diameter = parse_axis(group.get("axis")), group.get("diameter")
         lengths, centres = group.get("lengths") or [], group.get("centres") or []
@@ -140,7 +141,8 @@ def bores(task) -> list[dict]:
         for i, centre in enumerate(centres):
             length = float(lengths[i]) if len(lengths) == len(centres) else float(max(lengths))
             out.append({"centre": [float(c) for c in centre], "dir": direction, "length": length,
-                        "radius": diameter / 2, "visible": False})
+                        "radius": diameter / 2, "visible": False, "group": len(groups_seen)})
+        groups_seen.append(1)
     by_stem = {v.stem: v for v in task.views}
     for stem in AXIS_VIEWS:
         if stem not in by_stem:
@@ -221,8 +223,13 @@ def cut_holes_to_genus(body, task, rounds: int = 6, log=None, t_end: float | Non
     if not segs:
         return body, [], None
     vol_target = float(facts.get("volume_mm3") or 0.0)
+    from .geometry import brep_genus
+
+    start = body.val() if hasattr(body, "val") else body
+    fast = brep_genus(start) == genus(shape_to_mesh(start, rel_tol=1.5e-3))   # trust the topology count only if it agrees here
+
     def measure(shape):
-        return genus(shape_to_mesh(shape, rel_tol=1.5e-3))
+        return brep_genus(shape) if fast else genus(shape_to_mesh(shape, rel_tol=1.5e-3))
 
     def tool(i, mode):
         import cadquery as cq
@@ -230,62 +237,86 @@ def cut_holes_to_genus(body, task, rounds: int = 6, log=None, t_end: float | Non
         start = [c + lo * d for c, d in zip(segs[i]["centre"], segs[i]["dir"])]
         return cq.Solid.makeCylinder(segs[i]["radius"], hi - lo, cq.Vector(*start), cq.Vector(*segs[i]["dir"]))
 
-    # One bore at a time, daylight bores first, then the widest. A bore is taken in the first mode
-    # that keeps the count at or below the target: through/open, then as listed, then not at all.
+    # The facts list bores in patterns (same diameter and axis), and a pattern plays one role, so
+    # a whole pattern is tried in one cut: daylight bores through; the others opened to their
+    # nearer side, or else as listed, whichever keeps the count at or below the target. Only when
+    # a pattern as a whole overshoots are its bores tried one by one.
+    import time
+
     shape = body.val() if hasattr(body, "val") else body
     g = measure(shape)
     modes = ["skip"] * len(segs)
-    order = sorted(range(len(segs)), key=lambda i: (not segs[i]["visible"], -segs[i]["radius"]))
-    import time
 
     def late():
         return t_end is not None and time.monotonic() > t_end
 
-    for i in order:
-        if late():      # out of time: the remaining bores go in as listed, in one cut
-            try:
-                new = _largest_solid(shape.cut(*[tool(j, "listed") for j in order[order.index(i):]]))
-                g2 = measure(new)
-                if g2 >= 0:
-                    shape, g = new, g2
-                    for j in order[order.index(i):]:
-                        modes[j] = "listed"
-            except Exception:
-                pass
+    def attempt(idx, mode):
+        try:
+            new = _largest_solid(shape.cut(*[tool(i, mode) for i in idx]))
+            return new, measure(new)
+        except Exception:
+            return None, -1
+
+    units: dict[tuple, list[int]] = {}
+    for i, seg in enumerate(segs):
+        units.setdefault((not seg["visible"], -seg["radius"], seg["group"]), []).append(i)
+    for key in sorted(units):
+        idx, visible = units[key], not key[0]
+        if late():      # out of time: everything left goes in as listed, in one cut
+            rest = [i for k in sorted(units) if k >= key for i in units[k]]
+            new, g2 = attempt(rest, "listed")
+            if new is not None and g2 >= 0:
+                shape, g = new, g2
+                for i in rest:
+                    modes[i] = "listed"
             break
-        for mode in (("through",) if segs[i]["visible"] else ("open", "listed")):
-            try:
-                new = _largest_solid(shape.cut(tool(i, mode)))
-                g2 = measure(new)
-            except Exception:
-                continue
-            if 0 <= g2 <= target or segs[i]["visible"]:
-                shape, g, modes[i] = new, g2, mode
+        placed = False
+        for mode in (("through",) if visible else ("open", "listed")):
+            new, g2 = attempt(idx, mode)
+            if new is not None and (0 <= g2 <= target or visible):
+                shape, g, placed = new, g2, True
+                for i in idx:
+                    modes[i] = mode
                 break
+        if not placed and len(idx) > 1:
+            for i in idx:
+                for mode in ("open", "listed"):
+                    new, g2 = attempt([i], mode)
+                    if new is not None and 0 <= g2 <= target:
+                        shape, g, modes[i] = new, g2, mode
+                        break
     # Still short: drill more bores fully through, those that best close the volume gap first.
+    def cost(idx):
+        total = 0.0
+        for i in idx:
+            lo, hi = _bore_extent(segs[i], "through", size)
+            total += math.pi * segs[i]["radius"] ** 2 * (hi - lo)
+        return total
+
     for _ in range(rounds):
         if g >= target or late():
             break
         spare = shape.Volume() - vol_target
-
-        def cost(i):
-            lo, hi = _bore_extent(segs[i], "through", size)
-            return math.pi * segs[i]["radius"] ** 2 * (hi - lo)
-
-        cand = [i for i, m in enumerate(modes) if m != "through"]
-        fits = sorted([i for i in cand if cost(i) < 0.5 * spare], key=lambda i: -cost(i))
-        rest = sorted([i for i in cand if i not in fits], key=cost)
+        cand = [[i for i in idx if modes[i] != "through"] for idx in units.values()]
+        cand = [c for c in cand if c]
+        fits = sorted([c for c in cand if cost(c) < 0.5 * spare], key=lambda c: -cost(c))
+        rest = sorted([c for c in cand if c not in fits], key=cost)
         progressed = False
-        for i in fits + rest:
-            if g >= target:
+        for idx in fits + rest:
+            if g >= target or late():
                 break
-            try:
-                new = _largest_solid(shape.cut(tool(i, "through")))
-                g2 = measure(new)
-            except Exception:
-                continue
-            if g < g2 <= target:
-                shape, g, modes[i], progressed = new, g2, "through", True
+            new, g2 = attempt(idx, "through")
+            if new is not None and g < g2 <= target:
+                shape, g, progressed = new, g2, True
+                for i in idx:
+                    modes[i] = "through"
+            elif len(idx) > 1 and (new is None or g2 > target):
+                for i in idx:
+                    if g >= target:
+                        break
+                    new, g2 = attempt([i], "through")
+                    if new is not None and g < g2 <= target:
+                        shape, g, modes[i], progressed = new, g2, "through", True
         if not progressed:
             break
     if log is not None:
@@ -490,6 +521,19 @@ def body_sources(task) -> list[tuple[str, object]]:
             continue
         if body is not None:
             out.append((name, body))
+    # The tightest hull again, with the space in front of every face a bore starts from removed
+    # (forge/layers.py): pockets and recessed faces that no outline shows.
+    hulls = [b for n, b in out if n == "hull5"] or [b for n, b in out if n == "hull3"]
+    if hulls and task.facts.get("cylindrical_holes_and_bores"):
+        try:
+            from .layers import carve_mouth_faces
+
+            log: list[str] = []
+            carved = carve_mouth_faces(hulls[0], task, log=log)
+            if carved.val().Volume() < 0.999 * hulls[0].val().Volume():
+                out.append(("hull-faces", carved))
+        except Exception as exc:
+            print(f"{task.name}: body source hull-faces failed: {type(exc).__name__}: {exc}", flush=True)
     return out
 
 
