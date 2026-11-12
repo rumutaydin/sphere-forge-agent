@@ -210,6 +210,19 @@ our endpoint. Each of these can cost everything, and none needs new research:
 Where the points are (after 10 submissions): floor 0.856, best 0.871, best value per part
 0.877. Headroom is the interior shape of parts 6 (0.685), 7 (0.706), 5 (0.838), 9 (0.831).
 
+### T11. Incremental extrusion: depth for every region of every view (next, no GPU)
+
+The general form of face carving and the depth sweep; see the research pass of 12 Nov in
+`docs/RESEARCH.md`. Our hull extrudes each view's **outline** through the whole box. The
+classic method (Shum et al.) extrudes each **region** of a view (the areas its strokes cut
+it into) only as far as the neighbouring views allow, unions the regions of a view pair,
+and intersects the three. For us: for each region of an axis view, candidate depths are
+the positions of strokes in the two side-on views within that region's span (a face that
+is seen head-on in one view is an edge line in the views beside it); choose per region by
+the edge score and the plain-sight test, cut, check as every cut is checked. Measure on
+`scripts/bench_layers.py` first (enclosure, elbow, loft adapter have answers), then the
+nine practice parts. Expected to matter on parts 5, 7 and 9 (trays, pockets, levels).
+
 ## Rules that came out of today
 
 - `main` receives submission commits only; work on `<track>/<idea>` branches off `main`.
