@@ -194,6 +194,22 @@ Measure the surface term on `scripts/bench_nomodel.py`.
 - [ ] Brev credit lasts through judging; instance not stopped after the address is handed over
 - [ ] three slides: approach (code first, model second), numbers (0.32 → 0.87), cost (a minute per run without the model)
 
+## Do not forget before the freeze (agreed 12 Nov, 14:40 UTC; 17 hours left then)
+
+The ranking is decided on nine hidden parts, run by the organisers from our image against
+our endpoint. Each of these can cost everything, and none needs new research:
+
+- [ ] `main` holds the configuration we want to ship (today: approach `12`, 0.871, one real Docker run)
+- [ ] the model endpoint is **public** (today it is only reachable through Robin's SSH tunnel),
+      the handover env file has the public address, tested from a machine outside the tunnel
+- [ ] asked the organisers: do the hidden parts come with `facts.json`? (without it pass 1 has no bounding box)
+- [ ] asked the organisers: how many CPU cores does the container get? then `docker run --cpus <n>` once
+- [ ] the instance that serves the final model stays up, with credit, through judging
+- [ ] if a second model is adopted: it beat the 27B on a submission first, and the 27B stays up until then
+
+Where the points are (after 10 submissions): floor 0.856, best 0.871, best value per part
+0.877. Headroom is the interior shape of parts 6 (0.685), 7 (0.706), 5 (0.838), 9 (0.831).
+
 ## Rules that came out of today
 
 - `main` receives submission commits only; work on `<track>/<idea>` branches off `main`.
