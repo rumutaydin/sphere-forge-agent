@@ -537,6 +537,18 @@ def body_sources(task) -> list[tuple[str, object]]:
                 out.append(("hull-faces", carved))
         except Exception as exc:
             print(f"{task.name}: body source hull-faces failed: {type(exc).__name__}: {exc}", flush=True)
+    # ... and with every flat face that sits deeper than the hull shows it cut down to its depth
+    # (an open cavity, a recessed level): forge/layers.py: carve_layers. Needs no bores.
+    if hulls and os.environ.get("FORGE_DEPTH", "on").lower() not in ("off", "0", "no", "false"):
+        try:
+            from .layers import carve_layers
+
+            start = out[-1][1] if out[-1][0] == "hull-faces" else hulls[0]
+            deep = carve_layers(start, task, log=[])
+            if deep.val().Volume() < 0.999 * start.val().Volume():
+                out.append(("hull-depth", deep))
+        except Exception as exc:
+            print(f"{task.name}: body source hull-depth failed: {type(exc).__name__}: {exc}", flush=True)
     return out
 
 

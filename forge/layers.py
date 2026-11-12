@@ -57,7 +57,8 @@ def face_depths(task, stem: str, min_frac: float = 0.0008, steps: int = 240, hul
     # Patches of one flat shade in the isometric view. A face slid to its true depth covers the
     # whole of every patch it lands on (the patch IS the visible part of that face); at a wrong
     # depth it covers only a piece of a larger patch.
-    key = (iso[..., 0] // 8) * 4096 + (iso[..., 1] // 8) * 64 + iso[..., 2] // 8
+    iso32 = iso.astype(np.int32)
+    key = (iso32[..., 0] // 8) * 4096 + (iso32[..., 1] // 8) * 64 + iso32[..., 2] // 8
     flat = iso_part & ~ndimage.binary_dilation(iso_stroke, iterations=1)
     keys, counts = np.unique(key[flat], return_counts=True)
     pid = np.zeros(key.shape, np.int32)
@@ -117,13 +118,10 @@ def face_depths(task, stem: str, min_frac: float = 0.0008, steps: int = 240, hul
             n_hit = np.bincount(hit, minlength=len(patch_area))
             whole = n_hit * np.minimum(1.0, n_hit * per_sample / np.maximum(patch_area, 1.0))
             main = patch_key[int(whole.argmax())]             # the shade of the patch covered most completely
-            sel = (patch_key == main) & (n_hit > 0)
-            contain = np.minimum(1.0, n_hit[sel] * per_sample / np.maximum(patch_area[sel], 1.0))
-            uni[j] = float((n_hit[sel] * contain).sum()) / len(inner)        # covered, and whole patches
-            con[j] = float((n_hit[sel] * contain).sum() / max(n_hit[sel].sum(), 1))
-            px, ok = project(border, t)
-            edg[j] = iso_edge[px[ok, 1], px[ok, 0]].sum() / len(border)
+            possible = True
             if vox is not None:
+                # Samples with nothing of the hull between them and the isometric camera are in
+                # plain sight. They must all show one shade, and that shade is this face's.
                 sub = inner[:300]
                 pts = sub[:, :1] * cam.r + sub[:, 1:] * cam.u + (near + t) * cam.f
                 cells = np.floor((pts[:, None, :] + march) / pitch).astype(int)
@@ -131,11 +129,23 @@ def face_depths(task, stem: str, min_frac: float = 0.0008, steps: int = 240, hul
                 cells = np.clip(cells, 0, grid - 1)
                 blocked = (occluder[cells[..., 0], cells[..., 1], cells[..., 2]] & inside).any(axis=1)
                 if (~blocked).sum() >= 0.15 * len(sub):
-                    spx = np.floor(icam.to_px(pts[~blocked])).astype(int)
-                    spx = np.clip(spx, 0, iso.shape[0] - 1)
-                    seen = patch_key[pid[spx[:, 1], spx[:, 0]]] == main
-                    if seen.mean() < 0.8:        # in plain sight, yet the view shows something else there
-                        uni[j] = 0.0
+                    spx = np.clip(np.floor(icam.to_px(pts[~blocked])).astype(int), 0, iso.shape[0] - 1)
+                    shades = patch_key[pid[spx[:, 1], spx[:, 0]]]
+                    vals, cnt = np.unique(shades[shades >= 0], return_counts=True)
+                    if len(vals) == 0 or cnt.max() < 0.8 * len(shades):
+                        possible = False      # in plain sight, yet the view shows something else there
+                    else:
+                        main = vals[int(cnt.argmax())]
+            if not possible:
+                continue
+            sel = (patch_key == main) & (n_hit > 0)
+            if not sel.any():
+                continue
+            contain = np.minimum(1.0, n_hit[sel] * per_sample / np.maximum(patch_area[sel], 1.0))
+            uni[j] = float((n_hit[sel] * contain).sum()) / len(inner)        # covered, and whole patches
+            con[j] = float((n_hit[sel] * contain).sum() / max(n_hit[sel].sum(), 1))
+            px, ok = project(border, t)
+            edg[j] = iso_edge[px[ok, 1], px[ok, 0]].sum() / len(border)
         score = uni * (0.5 + 0.5 * edg)
         j = int(np.argmax(score))
         out.append({"mask": region, "depth": float(ts[j]), "contain": float(con[j]), "uniform": float(uni[j]), "edge": float(edg[j]),
@@ -171,7 +181,9 @@ def carve_layers(body, task, min_depth_frac: float = 0.004, log: list | None = N
         cam = Camera(stem, size, faces[0]["mask"].shape[0])
         corners = np.array([[x, y, z] for x in (0, size[0]) for y in (0, size[1]) for z in (0, size[2])]) @ cam.f
         near, extent = corners.min(), np.ptp(corners)
-        sure = [f for f in faces if f["contain"] >= 0.85 and f["uniform"] >= 0.3 and f["edge"] >= 0.4]
+        # a floor seen past a near wall is mostly hidden: low coverage is fine as long as the
+        # patches it does cover are covered whole and the plain-sight test (hull_mesh) passed
+        sure = [f for f in faces if f["contain"] >= 0.8 and f["uniform"] >= 0.15 and f["edge"] >= 0.25]
         part_px = int((_rgb(next(v for v in task.views if v.stem == stem)).min(axis=2) < 235).sum()) or 1
         for f in sure:
             if f["depth"] < min_depth_frac * max(size) or f["score"] < 1.5 * f["score0"]:
