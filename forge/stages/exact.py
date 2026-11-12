@@ -14,7 +14,8 @@ by code, and may send a revised program.
     gate()             the strict acceptance test; [] means the part may replace the current one
     fidelity()         one number to rank programs by
     run_exact()        the loop: program -> run -> report -> revised program, best version kept
-    accept()           may this candidate replace the best part so far?
+    verdict()          may this candidate stand in for the no-model part: strict rule, relaxed rule
+    accept()           may this candidate replace the best part so far? (called by forge/stages/select.py)
 
 The report and the gate use only what a brief can give: bounding box, volume, through-hole
 count, the bore list, and the silhouettes. Surface area and face counts are shown to the model
@@ -357,6 +358,27 @@ def fidelity(rep: dict) -> float:
     return 0.2 * dims + 0.2 * holes + 0.3 * vol + 0.3 * sil
 
 
+def volume_only(rep: dict) -> bool:
+    """Fails the gate on volume alone and matches every outline at 0.98 or better: the only
+    kind of failure the relaxed rule (FORGE_EXACT_RELAX=1) may admit."""
+    why = gate(rep)
+    return bool(why) and all(w.startswith("volume") for w in why) and (rep.get("iou_min") or 0.0) >= max(iou_bar(), 0.98)
+
+
+def rank(rep: dict) -> tuple:
+    """Which version of a program to keep: one that passes the gate, then one the relaxed rule
+    could admit, then the most faithful."""
+    return (not gate(rep), volume_only(rep), fidelity(rep))
+
+
+def numbers(rep: dict) -> dict:
+    """The numbers the gate looks at, for logs and the run summary."""
+    r4 = lambda v: None if v is None else round(float(v), 4)
+    return {"fidelity": r4(fidelity(rep)), "bbox_err": [r4(e) for e in rep.get("bbox_err") or []],
+            "genus": rep.get("genus"), "genus_target": rep.get("genus_target"), "volume_ratio": r4(rep.get("volume_ratio")),
+            "iou_min": r4(rep.get("iou_min")), "iou_mean": r4(rep.get("iou_mean"))}
+
+
 def report_text(rep: dict) -> str:
     """The report as the model reads it."""
     lines = ["MEASURED BY CODE (exact):"]
@@ -485,7 +507,8 @@ def run_exact(llm: LLM, backend: CadBackend, cand: Candidate, task: Task, task_b
         return
     has_bores = bool(task.facts.get("cylindrical_holes_and_bores"))
     code = ask(llm, task_blocks + ([text_block(note)] if note else []) + [text_block(FIRST_ASK)], deadline)
-    kept = None          # (fidelity, code, result, report)
+    kept = None          # (rank, code, result, report)
+    history = []         # one line of numbers per round, for the run summary
     res = None
     for r in range(rounds + 1):
         if not code:
@@ -494,16 +517,20 @@ def run_exact(llm: LLM, backend: CadBackend, cand: Candidate, task: Task, task_b
         res, rep = execute(backend, task, code, cand.dir / f"round{r}")
         ran = rep is not None
         if ran:
-            best = (fidelity(rep), code, res, rep)
+            best = (rank(rep), code, res, rep)
             if has_bores and rep["valid"] and rep.get("genus_target") is not None and rep.get("genus") != rep["genus_target"]:
                 # the hole count is off: let code drill the listed bores and keep the better of the two
                 res2, rep2 = execute(backend, task, code, cand.dir / f"round{r}_bores", holes="fit")
-                if rep2 is not None and fidelity(rep2) > best[0]:
-                    best = (fidelity(rep2), code, res2, rep2)
+                if rep2 is not None and rank(rep2) > best[0]:
+                    best = (rank(rep2), code, res2, rep2)
             if kept is None or best[0] > kept[0]:
                 kept = best
-            cand.log.append(f"exact round {r}: fidelity {best[0]:.3f}, volume x{best[3].get('volume_ratio') or 0:.3f}, "
-                            f"worst view {best[3].get('iou_min') or 0:.3f}, " + ("passes" if not gate(best[3]) else "fails: " + "; ".join(gate(best[3]))))
+            why = gate(best[3])
+            history.append({"round": r, **numbers(best[3]), "strict": why, "volume_only": volume_only(best[3])})
+            cand.log.append(f"exact round {r}: fidelity {fidelity(best[3]):.3f}, volume x{best[3].get('volume_ratio') or 0:.3f}, "
+                            f"worst view {best[3].get('iou_min') or 0:.3f}, " + ("passes" if not why else "fails: " + "; ".join(why))
+                            + ("" if not why else "; relaxed rule: " + ("eligible (volume only, all views >= 0.98)"
+                                                                        if volume_only(best[3]) else "not eligible")))
             if clean(best[3]):
                 break
             what = ("Your program ran. This is what code measured on its result:\n\n" + report_text(rep) + "\n\n"
@@ -525,6 +552,7 @@ def run_exact(llm: LLM, backend: CadBackend, cand: Candidate, task: Task, task_b
     if kept:
         _, cand.code, cand.result, rep = kept
         cand.check = check_of(cand.result, rep, task.facts)
+        cand.check["rounds"] = history
     elif res is not None:
         cand.result, cand.check = res, {}
 
@@ -543,13 +571,17 @@ def floor_report(floor: dict | None) -> dict | None:
             "iou_mean": float(np.mean(list(per.values()))) if per else None}
 
 
-def dominates(check: dict, floor: dict | None) -> bool:
+def relax_on() -> bool:
+    return os.environ.get("FORGE_EXACT_RELAX", "0").strip().lower() in ("1", "on", "yes", "true")
+
+
+def dominates(check: dict, floor: dict | None, relax: bool | None = None) -> bool:
     """FORGE_EXACT_RELAX=1 (off by default): a second way in for a program that fails the gate on
     volume ALONE. It must match every outline at 0.98 or better and be clearly nearer the target
     volume than the no-model part, with outlines no worse: then it is at least as good on every
     number we can measure. For parts whose stated volume no solid consistent with brief and views
     reaches (practice part 6), where the strict gate can never open."""
-    if os.environ.get("FORGE_EXACT_RELAX", "0") != "1" or not floor:
+    if not (relax_on() if relax is None else relax) or not floor:
         return False
     rep, base = check.get("exact") or {}, floor_report(floor)
     if not base or not all(w.startswith("volume") for w in check.get("gate") or ["-"]):
@@ -560,21 +592,35 @@ def dominates(check: dict, floor: dict | None) -> bool:
             and (rep.get("iou_mean") or 0.0) >= (base.get("iou_mean") or 1.0) - 0.01)
 
 
-def accept(cand: Candidate, best: dict, floor: dict | None) -> bool:
+def verdict(check: dict, floor: dict | None, relax: bool) -> list[str]:
+    """Why this exact program may NOT stand in for the no-model part, under the strict rule
+    (relax=False) or the relaxed one (relax=True); [] means it may. It does not read
+    FORGE_EXACT_RELAX, so one run can log what each rule would have decided."""
+    if not check or "gate" not in check:
+        return ["no measured result"]
+    why = []
+    if check["gate"] and not dominates(check, floor, relax=relax):
+        why += list(check["gate"])
+        if relax:
+            why.append("relaxed rule: needs a volume-only failure, all views >= 0.98 and a volume clearly nearer than the no-model part's")
+    if floor and check.get("dimensions", 1.0) < floor["check"].get("dimensions", 1.0) - 0.01:
+        why.append("outer dimensions worse than the no-model part's")
+    rep = floor_report(floor)
+    if rep and not gate(rep) and fidelity(rep) >= check["fidelity"]:
+        why.append(f"the no-model part passes the same test with fidelity {fidelity(rep):.3f}")
+    return why
+
+
+def accept(cand: Candidate, best: dict, floor: dict | None, relax: bool | None = None) -> bool:
     """An exact program replaces the current part only if it passes the gate, its outer dimensions
     are not worse than the no-model part's, and it is more faithful than what it replaces: than
     the exact program chosen before it, or than a no-model part that itself passes the gate."""
     if not cand.usable or not cand.check or "gate" not in cand.check:
         return False
-    if cand.check["gate"] and not dominates(cand.check, floor):
-        return False
-    if floor and cand.check.get("dimensions", 1.0) < floor["check"].get("dimensions", 1.0) - 0.01:
-        cand.log.append("exact: not offered, outer dimensions worse than the no-model part's")
+    why = verdict(cand.check, floor, relax_on() if relax is None else relax)
+    if why:
+        cand.log += [f"exact: not offered, {w}" for w in why if w not in cand.check["gate"] and not w.startswith("relaxed rule")]
         return False
     if best.get("exact"):
-        return cand.check["fidelity"] > best["check"].get("fidelity", 0.0)
-    rep = floor_report(floor)
-    if rep and not gate(rep) and fidelity(rep) >= cand.check["fidelity"]:
-        cand.log.append(f"exact: not offered, the no-model part passes the same test with fidelity {fidelity(rep):.3f}")
-        return False
+        return cand.check["fidelity"] > (best.get("check") or {}).get("fidelity", 0.0)
     return True

@@ -70,7 +70,8 @@ def main() -> None:
         for s in summaries:
             task = tasks[s["task"]]
             chk = s["self_check"]
-            row = {"self_score": chk.get("self_score", 0.0), "chosen": s["chosen"],
+            row = {"self_score": chk.get("self_score", 0.0), "chosen": s["chosen"], "source": s.get("source"),
+                   "would_choose": s.get("would_choose"),
                    "estimate": chk.get("estimate", 0.0), "dimensions": chk.get("dimensions"), "holes": chk.get("holes"),
                    "volume_ratio": chk.get("volume_ratio"), "area_ratio": chk.get("area_ratio"),
                    "silhouette_iou": chk.get("silhouette_iou"),

@@ -6,6 +6,7 @@ For comparing a run made with FORGE_IGNORE_FACTS=1 (facts from the brief) with a
 both are measured with the same real facts and views. Columns per run: chosen source, dimensions,
 holes, volume ratio, estimate (the rough leaderboard estimate; a stand-in, not a prediction).
 A run folder holds <task>/compile.json (scripts/compile_all.py) or <task>.stp files.
+`real_tasks` and `score_step` are also used by scripts/score_extended.py.
 """
 import argparse
 import json
@@ -26,35 +27,48 @@ def chosen(run: Path, name: str):
         return ("file", stp) if stp.is_file() else (None, None)
 
 
+def real_tasks(inputs, only=None):
+    """The tasks of `inputs` with the facts of their facts.json, whatever the environment says."""
+    os.environ.pop("FORGE_IGNORE_FACTS", None)
+    os.environ.pop("FORGE_FACTS_DIR", None)
+    from forge.cases import load_tasks
+
+    return load_tasks(inputs, only)
+
+
+def score_step(step, task) -> dict | None:
+    """The check of one STEP file against a task's facts and views (dimensions, holes, volume_ratio,
+    silhouette_iou, estimate, ...), or None if the file is missing or not one valid solid."""
+    import cadquery as cq
+
+    from forge.compile import measure_body
+
+    if step is None or not Path(step).is_file():
+        return None
+    try:
+        m = measure_body(cq.importers.importStep(str(step)), task)
+    except Exception as exc:
+        print(f"{task.name} {step}: {type(exc).__name__}: {exc}", flush=True)
+        return None
+    return m["check"] if m else None
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("runs", nargs="+")
     ap.add_argument("--inputs", default=str(ROOT / "artifacts/inputs"))
     a = ap.parse_args()
-    os.environ.pop("FORGE_IGNORE_FACTS", None)
-    os.environ.pop("FORGE_FACTS_DIR", None)
-    import cadquery as cq
-
-    from forge.cases import load_tasks
-    from forge.compile import measure_body
-
-    tasks = load_tasks(a.inputs)
+    tasks = real_tasks(a.inputs)
     table, means = [], {r: [] for r in a.runs}
     for task in tasks:
         cells = []
         for r in a.runs:
             name, step = chosen(Path(r), task.name)
-            m = None
-            if step is not None and step.is_file():
-                try:
-                    m = measure_body(cq.importers.importStep(str(step)), task)
-                except Exception as exc:
-                    print(f"{task.name} {r}: {type(exc).__name__}: {exc}", flush=True)
-            if m is None:
+            c = score_step(step, task)
+            if c is None:
                 cells.append(f"{'-':>22s}  no valid solid" + " " * 21)
                 means[r].append(0.0)
                 continue
-            c = m["check"]
             cells.append(f"{name[:22]:>22s} d {c['dimensions']:.2f} h {c['holes']:.2f} v x{c['volume_ratio']:.3f} est {c['estimate']:.3f}")
             means[r].append(c["estimate"])
         print(f"{task.name:12s} | " + " | ".join(cells), flush=True)

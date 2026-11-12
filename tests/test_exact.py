@@ -155,3 +155,104 @@ def test_relaxed_route_is_off_by_default_and_needs_a_better_volume(tmp_path, mon
     assert not exact.accept(cand, best, {**floor, "check": {**floor["check"], "volume_ratio": 1.5}})   # the floor is nearer
     cand.check["gate"] = ["volume x1.600", "through-holes 1 against 0"]
     assert not exact.accept(cand, best, floor)
+
+
+def _cand(tmp_path, idx, check):
+    from forge.backends.base import ExecResult
+    from forge.types import Candidate
+
+    step = tmp_path / f"c{idx}.step"
+    step.write_text(f"part {idx}")
+    return Candidate(idx, f"code {idx}", tmp_path, result=ExecResult(True, "", step), check=check)
+
+
+def _exact_check(**change):
+    rep = {"valid": True, "bbox_target": [10, 10, 10], "bbox_err": [0.0, 0.0, 0.0], "volume_ratio": 1.01,
+           "genus": 0, "genus_target": 0, "iou": {"a": 0.99, "b": 0.985}, "iou_min": 0.985, "iou_mean": 0.9875, **change}
+    return {"exact": rep, "fidelity": exact.fidelity(rep), "gate": exact.gate(rep), "dimensions": 1.0, "estimate": 0.5}
+
+
+def test_judge_tiers_and_both_verdicts(tmp_path, monkeypatch):
+    """exact passing the gate > body by the margin > hull, whatever the estimates say; every exact
+    program is judged under the strict and the relaxed rule whichever is active."""
+    from forge.stages.select import Judge, source_of
+
+    monkeypatch.delenv("FORGE_EXACT_RELAX", raising=False)
+    floor = {"name": "hull5+holes", "step": "hull.step", "check": {"estimate": 0.80, "dimensions": 1.0, "holes": 1.0, "volume_ratio": 2.8},
+             "shape": {"iou_per_view": {"a": 0.99, "b": 0.99}}}
+    out = tmp_path / "t.stp"
+    judge = Judge(None, floor, out, margin=0.02)
+    assert judge.best["tier"] == "hull" and judge.report()["source"] == "hull"
+    # body tier: the margin decides
+    assert not judge.offer_body(_cand(tmp_path, 0, {"estimate": 0.81, "dimensions": 1.0}))
+    assert judge.offer_body(_cand(tmp_path, 1, {"estimate": 0.85, "dimensions": 1.0}))
+    assert judge.best["chosen"] == "model body 1" and out.read_text() == "part 1"
+    # an exact program that fails on volume alone: refused by the strict rule, admitted by the relaxed one, both logged
+    loose = _cand(tmp_path, 200, _exact_check(volume_ratio=1.6))
+    assert not judge.offer_exact(loose) and judge.best["chosen"] == "model body 1"
+    v = judge.verdicts[0]
+    assert not v["strict"]["admit"] and v["strict"]["why"] == ["volume x1.600"] and v["relaxed"]["admit"]
+    assert v["volume_ratio"] == 1.6 and v["iou_min"] == 0.985
+    rep = judge.report()
+    assert rep["rule"] == "strict" and rep["would_choose"] == {"strict": "model body 1", "relaxed": "exact program 0"}
+    assert "strict refuse, relaxed ADMIT" in loose.log[-1]
+    # one that passes: it wins although its estimate (0.5) is far below the body's (0.85)
+    assert judge.offer_exact(_cand(tmp_path, 201, _exact_check()))
+    assert judge.best["chosen"] == "exact program 1" and judge.best["tier"] == "exact" and out.read_text() == "part 201"
+    # a later, better body never replaces it; it is remembered as what lies below
+    assert judge.offer_body(_cand(tmp_path, 2, {"estimate": 0.95, "dimensions": 1.0}))
+    rep = judge.report()
+    assert out.read_text() == "part 201" and rep["source"] == "exact" and rep["below_exact"]["chosen"] == "model body 2"
+    assert rep["would_choose"] == {"strict": "exact program 1", "relaxed": "exact program 1"}
+    # a failed program still gets a verdict; a wrong hole count is refused by both rules
+    judge.offer_exact(_cand(tmp_path, 202, {}))
+    judge.offer_exact(_cand(tmp_path, 203, _exact_check(genus=2)))
+    assert [(v["strict"]["admit"], v["relaxed"]["admit"]) for v in judge.verdicts[2:]] == [(False, False), (False, False)]
+    # under FORGE_EXACT_RELAX=1 the volume-only program is chosen over the hull
+    monkeypatch.setenv("FORGE_EXACT_RELAX", "1")
+    relaxed = Judge(None, floor, None)
+    assert relaxed.offer_exact(_cand(tmp_path, 200, _exact_check(volume_ratio=1.6))) and relaxed.report()["rule"] == "relaxed"
+    # the box only when there is nothing else
+    empty = Judge(None, None, None)
+    empty.offer_box(tmp_path / "box.step")
+    assert empty.report()["source"] == "box" and empty.best["chosen"] == "fallback box"
+    assert [source_of(c) for c in ("exact program 0", "model body 1", "model cuts 0", "revolve+holes", "box", "fallback box", None)] \
+        == ["exact", "body", "body", "hull", "box", "box", "box"]
+
+
+def test_summary_carries_source_and_verdicts(flange, tmp_path, monkeypatch):
+    monkeypatch.setenv("FORGE_EXACT_ROUNDS", "0")
+    backend = get_backend()
+    floor_res = backend.execute(backend.box_code(100, 100, 30), tmp_path / "floor")
+    floor = {"name": "hull+holes", "step": str(floor_res.step_path),
+             "check": {"estimate": 0.60, "dimensions": 1.0, "holes": 0.0, "volume_ratio": 3.3}, "shape": {}}
+    summary = Agent(ScriptedLLM([fenced(SHORT_HUB)]), backend, n_candidates=0, n_exact=1).solve(flange, tmp_path / "w", floor=floor)
+    assert summary["source"] == "hull" and summary["rule"] == "strict"
+    v = summary["exact_verdicts"][0]
+    assert not v["strict"]["admit"] and not v["relaxed"]["admit"] and any("Z size" in w for w in v["strict"]["why"])
+    assert v["rounds"][0]["round"] == 0 and v["rounds"][0]["volume_only"] is False and v["genus"] == 7
+    assert json.loads((tmp_path / "w" / "summary.json").read_text())["exact_verdicts"][0]["candidate"] == "exact program 0"
+
+
+def test_exact_runs_on_parts_the_bodies_skip(flange, tmp_path, monkeypatch):
+    """A no-model estimate above FORGE_SKIP_ABOVE spares a part the model bodies, not the exact programs."""
+    from forge.run import run_all
+
+    monkeypatch.setenv("FORGE_SKIP_ABOVE", "0.0")       # every part counts as already good
+    monkeypatch.setenv("FORGE_PASS1_S", "120")
+    seen = []
+
+    class Recorder(Agent):
+        def solve(self, task, out_dir, deadline=None, publish=None, floor=None, bodies=True):
+            seen.append(bodies)
+            return {"task": task.name, "step": floor["step"], "chosen": floor["name"], "self_check": floor["check"],
+                    "error": None, "candidates": []}
+
+    root = flange.dir.parent
+    run_all(root, tmp_path / "o1", agent=Recorder(ScriptedLLM([""]), get_backend(), n_exact=1), work_dir=tmp_path / "w1")
+    assert seen == [False]
+    summary = json.loads((tmp_path / "w1" / "run_summary.json").read_text())
+    assert summary["parts"]["test_case_1"]["source"] in ("hull", "box") and sum(summary["by_source"].values()) == 1
+    assert sorted(p.name for p in (tmp_path / "o1").iterdir()) == ["test_case_1.stp"]      # STEP only in the output folder
+    run_all(root, tmp_path / "o2", agent=Recorder(ScriptedLLM([""]), get_backend(), n_exact=0), work_dir=tmp_path / "w2")
+    assert seen == [False]                               # no exact programs asked for: the model pass is skipped as before

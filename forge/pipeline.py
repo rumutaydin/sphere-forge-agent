@@ -1,37 +1,33 @@
 """The orchestrator: wires the stages together and nothing else.
 
-    pass 1 (forge.compile, no model)   silhouette body + bores from the facts -> written at once
-    pass 2 (this file, the model)      [ body program -> finished by code -> repair ] x N -> select
-                                       [ exact program -> measured -> revised ] x FORGE_EXACT, behind a strict gate
+    pass 1 (forge.compile, no model)   silhouette body + bores from the facts -> written at once (tier: hull)
+    pass 2 (this file, the model)      generators, each a complete solid, none trims another:
+                                       [ exact program -> measured -> revised ] x FORGE_EXACT   (tier: exact)
+                                       [ body program -> finished by code -> repair ] x N       (tier: body)
+    the judge (forge/stages/select.py) exact passing the gate > body by margin and veto > hull > box
 
 The file in the output folder is always the best part known so far: a box first, then the
-no-model part, then any candidate whose estimate is higher. Nothing waits for the end of
-a part, so a timeout or a dead endpoint cannot lose one. Stage logic lives in
-forge/stages/ and forge/compile.py. Keep this file thin.
+no-model part, then whatever the judge admits. Nothing waits for the end of a part, so a
+timeout or a dead endpoint cannot lose one. Stage logic lives in forge/stages/ and
+forge/compile.py. Keep this file thin.
 """
 from __future__ import annotations
 
 import json
 import os
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from .backends import CadBackend
-from .compile import publish_file
 from .llm import LLM
 from .stages import exact
 from .stages.build import floor_note, generate, run_with_repair
 from .stages.carve import apply_cuts, propose_cuts
+from .stages.select import Judge, score_of  # noqa: F401  (score_of is imported from here by forge/run.py)
 from .stages.understand import task_content
 from .stages.verify import critique
 from .types import Candidate, Task
-
-
-def score_of(check: dict) -> float:
-    """What candidates are ranked by: the leaderboard estimate when the views allowed one."""
-    return float(check.get("estimate", check.get("self_score", 0.0))) if check else 0.0
 
 
 class Agent:
@@ -50,51 +46,19 @@ class Agent:
         return res.step_path if res.ok else None
 
     def solve(self, task: Task, out_dir: Path, deadline: float | None = None,
-              publish: Path | None = None, floor: dict | None = None) -> dict:
+              publish: Path | None = None, floor: dict | None = None, bodies: bool = True) -> dict:
         """Model pass for one task. `floor` is the best no-model row from forge.compile (or None);
-        `publish` is the output file, overwritten whenever a candidate beats the best so far.
+        `publish` is the output file, overwritten whenever the judge admits a better part.
+        `bodies=False` runs the exact programs only (a part whose no-model estimate is already high).
         Returns a summary; summary["step"] is the best STEP file known (or None)."""
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
-        lock = threading.Lock()
-        best = {"score": score_of(floor["check"]) if floor else -1.0, "step": floor["step"] if floor else None,
-                "chosen": floor["name"] if floor else None, "check": floor["check"] if floor else {}, "code": None}
+        judge = Judge(task, floor, publish, self.margin, self.edge_veto)
+        offer = judge.offer_body
         hull = out_dir / "pass1" / "hull.step"
         hull = hull if hull.is_file() else None
         cands: list[Candidate] = []
         error = None
-
-        def offer(cand: Candidate) -> None:
-            if not cand.usable or (floor and not cand.check):
-                return
-            if floor and cand.check.get("dimensions", 1.0) < floor["check"].get("dimensions", 1.0) - 0.01:
-                cand.log.append("not offered: outer dimensions worse than the no-model part's")
-                return      # dimensions are 20% of the score and the no-model part has them exact
-            if floor and floor["check"].get("edge_all") is not None and score_of(cand.check) > best["score"]:
-                # Edges inside the outline: on the leaderboard, model results that lowered this
-                # were the ones that lost points (scripts/calibrate_edges.py).
-                from .vision import edge_score
-
-                try:
-                    cand.check["edge_all"] = edge_score(cand.result.step_path, task)["all"]
-                except Exception:
-                    cand.check["edge_all"] = None
-                if cand.check["edge_all"] is not None and cand.check["edge_all"] < floor["check"]["edge_all"] - self.edge_veto:
-                    cand.log.append(f"not offered: its edges match the views worse than the no-model part's "
-                                    f"({cand.check['edge_all']:.3f} against {floor['check']['edge_all']:.3f})")
-                    return
-            with lock:
-                # A model result must beat the no-model part by a clear margin: the estimate cannot
-                # see inside the outline, and on the leaderboard small estimated gains were noise
-                # (part 2: +0.017 estimated, -0.005 scored).
-                bar = best["score"] + (self.margin if best["code"] is None and floor else 1e-9)
-                if best.get("exact"):
-                    return      # an exact program that passed the gate is replaced only by a more faithful one
-                if score_of(cand.check) > bar or best["step"] is None:
-                    best.update(score=score_of(cand.check), step=str(cand.result.step_path),
-                                chosen=f"model {'cuts' if cand.idx >= 100 else 'body'} {cand.idx % 100}", check=cand.check, code=cand.code)
-                    if publish:
-                        publish_file(cand.result.step_path, publish)
 
         def work(i: int) -> Candidate:
             cand = Candidate(i, "", out_dir / f"cand{i}")
@@ -117,14 +81,12 @@ class Agent:
             cand = Candidate(i, "", out_dir / f"exact{i % 100}")
             try:
                 exact.run_exact(self.llm, self.backend, cand, task, blocks, deadline=deadline, note=note)
-                with lock:
-                    if exact.accept(cand, best, floor):
-                        best.update(score=score_of(cand.check), step=str(cand.result.step_path), exact=True,
-                                    chosen=f"exact program {i % 100}", check=cand.check, code=cand.code)
-                        if publish:
-                            publish_file(cand.result.step_path, publish)
             except Exception as exc:
                 cand.log.append(f"failed: {type(exc).__name__}: {exc}")
+            try:
+                judge.offer_exact(cand)     # also when the run failed: the verdict of every program is logged
+            except Exception as exc:
+                cand.log.append(f"judge failed: {type(exc).__name__}: {exc}")
             return cand
 
         def carve(i: int) -> Candidate:
@@ -148,23 +110,24 @@ class Agent:
         try:
             blocks = task_content(task)
             note = floor_note(floor, task.facts)
-            n_carve = self.n_carve if floor and floor["check"].get("volume_ratio", 1.0) > 1.04 and task.dir else 0
-            with ThreadPoolExecutor(max(self.n_candidates + n_carve + self.n_exact, 1)) as pool:
-                jobs = [pool.submit(work, i) for i in range(self.n_candidates)]
+            n_bodies = self.n_candidates if bodies else 0
+            n_carve = self.n_carve if bodies and floor and floor["check"].get("volume_ratio", 1.0) > 1.04 and task.dir else 0
+            with ThreadPoolExecutor(max(n_bodies + n_carve + self.n_exact, 1)) as pool:
+                jobs = [pool.submit(work, i) for i in range(n_bodies)]
                 jobs += [pool.submit(exact_work, 200 + i) for i in range(self.n_exact)]
                 jobs += [pool.submit(carve, 100 + i) for i in range(n_carve)]
                 cands = [j.result() for j in jobs]
         except Exception as exc:  # a dead endpoint must not cost us what we already have
             error = f"{type(exc).__name__}: {exc}"
 
-        if best["step"] is None:
-            box = self.fallback(task, out_dir)
-            best.update(step=str(box) if box else None, chosen="fallback box" if box else None)
+        if judge.best["step"] is None:
+            judge.offer_box(self.fallback(task, out_dir))
+        best = judge.best
         if best["code"]:
             (out_dir / "final.py").write_text(best["code"])
         summary = {
             "task": task.name, "step": best["step"], "chosen": best["chosen"], "self_check": best["check"],
-            "error": error,
+            "error": error, **judge.report(),
             "candidates": [{"idx": c.idx, "usable": c.usable, "approved": c.approved,
                             "score": score_of(c.check), "log": c.log} for c in cands],
         }
