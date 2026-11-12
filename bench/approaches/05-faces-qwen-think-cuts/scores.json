@@ -1,0 +1,100 @@
+{
+ "what": "As 04 plus the model pass with thinking on (medium, 16k tokens), 2 bodies + 1 cut list per part. Model won on 2,4,5,6,7,8 (cut lists on 5,6,7,8). 1275 s wall clock.",
+ "n_cases": 9,
+ "leaderboard": null,
+ "mean_estimate": 0.8137,
+ "holes_right": 9,
+ "cases": {
+  "test_case_1": {
+   "valid": true,
+   "estimate": 0.9144,
+   "self_score": 0.9994,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.999,
+   "area_ratio": 1.001,
+   "silhouette_iou": 0.9939
+  },
+  "test_case_2": {
+   "valid": true,
+   "estimate": 0.8796,
+   "self_score": 0.9783,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.042,
+   "area_ratio": 0.968,
+   "silhouette_iou": 0.9761
+  },
+  "test_case_3": {
+   "valid": true,
+   "estimate": 0.9153,
+   "self_score": 0.998,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.996,
+   "area_ratio": 0.997,
+   "silhouette_iou": 0.9981
+  },
+  "test_case_4": {
+   "valid": true,
+   "estimate": 0.8847,
+   "self_score": 0.9785,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.043,
+   "area_ratio": 1.031,
+   "silhouette_iou": 0.9857
+  },
+  "test_case_5": {
+   "valid": true,
+   "estimate": 0.8485,
+   "self_score": 0.9506,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.121,
+   "area_ratio": 0.943,
+   "silhouette_iou": 0.9936
+  },
+  "test_case_6": {
+   "valid": true,
+   "estimate": 0.5552,
+   "self_score": 0.691,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 2.404,
+   "area_ratio": 0.554,
+   "silhouette_iou": 0.9935
+  },
+  "test_case_7": {
+   "valid": true,
+   "estimate": 0.6504,
+   "self_score": 0.861,
+   "dimensions": 0.995,
+   "holes": 1.0,
+   "volume_ratio": 1.711,
+   "area_ratio": 0.956,
+   "silhouette_iou": 0.9769
+  },
+  "test_case_8": {
+   "valid": true,
+   "estimate": 0.874,
+   "self_score": 0.9649,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.064,
+   "area_ratio": 0.943,
+   "silhouette_iou": 0.9865
+  },
+  "test_case_9": {
+   "valid": true,
+   "estimate": 0.8011,
+   "self_score": 0.8608,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.23,
+   "area_ratio": 0.723,
+   "silhouette_iou": 0.9959
+  }
+ },
+ "settings": "FORGE_THINKING=on FORGE_REASONING_EFFORT=medium FORGE_MAX_TOKENS=16000 FORGE_LLM_TIMEOUT_S=700 FORGE_CANDIDATES=2 FORGE_CARVE=1 FORGE_WORKERS=9 FORGE_BUDGET_S=3000"
+}

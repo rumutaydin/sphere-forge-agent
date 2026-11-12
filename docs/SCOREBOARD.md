@@ -45,6 +45,58 @@ there is no excuse to lose these points.
 In the self-score mean a fallback box counts as 0, although it earns 0.2–0.4 on the
 leaderboard. Compare self-scores per part, not by the mean.
 
+## Approaches filed on 12 Nov (none submitted yet)
+
+Each row is a folder in `bench/approaches/` with nine STEP files. **"Estimate" is local**,
+not the leaderboard: `0.14 + 0.16 × holes + 0.62 × volume ratio × silhouette IoU`, fitted
+on the 16 files of `bench/calibration/` (leave-one-out error 0.07 per part). Columns 1–9
+are the estimate per practice part.
+
+| Approach | Estimate | Leaderboard | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | Holes right |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `00-boxes` | 0.327 | **0.320** | 0.40 | 0.31 | 0.37 | 0.34 | 0.45 | 0.36 | 0.19 | 0.28 | 0.25 | 3 of 9 |
+| `00-qwen-picked` | 0.652 | **0.658** | 0.88 | 0.88 | 0.92 | 0.68 | 0.84 | 0.57 | 0.19 | 0.65 | 0.25 | 6 of 9 |
+| `01-no-model` | 0.773 | not submitted | 0.88 | 0.86 | 0.92 | 0.83 | 0.80 | 0.49 | 0.61 | 0.87 | 0.70 | 9 of 9 |
+| `02-two-pass-qwen-nothink` | 0.779 | not submitted | 0.88 | 0.86 | 0.92 | 0.88 | 0.80 | 0.49 | 0.61 | 0.87 | 0.70 | 9 of 9 |
+| `03-two-pass-qwen-think-cuts` | 0.807 | not submitted | 0.90 | 0.91 | 0.92 | 0.88 | 0.81 | 0.62 | 0.61 | 0.89 | 0.73 | 9 of 9 |
+| `04-no-model-faces` | 0.794 | not submitted | 0.91 | 0.86 | 0.92 | 0.83 | 0.85 | 0.49 | 0.61 | 0.87 | 0.80 | 9 of 9 |
+| `05-faces-qwen-think-cuts` | 0.814 | not submitted | 0.91 | 0.88 | 0.92 | 0.88 | 0.85 | 0.56 | 0.65 | 0.87 | 0.80 | 9 of 9 |
+
+- `00-boxes`: Bounding boxes (leaderboard 0.320 on 11 Nov)
+- `00-qwen-picked`: Hand-picked model candidates of 11 Nov (leaderboard 0.658)
+- `01-no-model`: Pass 1 only, no model call: visual hull or revolve from the eight views, bores from facts.json fitted to the through-hole count. 8 min wall clock.
+- `02-two-pass-qwen-nothink`: Pass 1 + model body pass, Qwen3.8-27B, thinking off, 3 bodies per part. Model won only on parts 4 and 6. 632 s wall clock.
+- `03-two-pass-qwen-think-cuts`: Pass 1 + model pass with thinking on (medium, 16k tokens), 2 bodies + 1 cut list per part. Model won on 1,2,4,5,6,8,9. 1691 s wall clock.
+- `04-no-model-faces`: Pass 1 only, no model call: as 01 plus the space in front of every face a bore starts from removed (forge/layers.py). 6 min wall clock.
+- `05-faces-qwen-think-cuts`: As 04 plus the model pass with thinking on (medium, 16k tokens), 2 bodies + 1 cut list per part. Model won on 2,4,5,6,7,8 (cut lists on 5,6,7,8). 1275 s wall clock.
+
+How far to trust the estimate:
+
+- It reproduces the two means we know (0.327 against 0.320; 0.652 against 0.658), but
+  those are the files it was fitted on. Per part it is off by up to 0.13 (part 5: 0.84
+  against 0.709).
+- Dimensions and holes in it are exact. The shape part is not: a hull matches every
+  silhouette by construction, so for hulls the estimate is driven by the volume ratio.
+- A model cut list raises it whenever volume comes off without a silhouette changing.
+  That does not prove the cut is in the right place. Rows 03 and 05 may be flattered.
+- Two runs of the same model settings differ by about 0.01 in the mean (part 6: 0.62 in
+  one run, 0.56 in the next).
+
+Wall-clock on Robin's laptop (15 cores): pass 1 alone 6 min (52 s inside the Linux
+container); with the model pass, thinking off 10.5 min, thinking on 21–28 min.
+
+### True local score (our 12 reference parts, which have answers)
+
+| Run | Mean score | Notes |
+|---|---|---|
+| bounding boxes | 0.499 | `scripts/bench_nomodel.py` |
+| hull from silhouettes, no model | 0.921 | ten parts at 0.94–1.00; enclosure 0.68, elbow 0.53 (hollow) |
+| hull from organiser-style renders | 0.920 | `scripts/bench_layers.py` |
+| the same, plus the depth sweep | 0.924 | flange 0.961 → 0.996, wheel 0.981 → 0.997; hollow parts unchanged |
+
+These parts are simpler than the practice set and their facts carry no bore list, so
+this measures the silhouette bodies only.
+
 ### Per part: self-score against the leaderboard (hand-picked set)
 
 | Part | Tier | Box | Self-score | Leaderboard | Shape points earned (of 0.60) |
