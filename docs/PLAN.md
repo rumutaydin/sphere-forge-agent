@@ -23,6 +23,26 @@ or chamfers ("leave out edge rounds"), "ten to thirty solids", output trimmed by
 (faceted surfaces), selected by an estimate that cannot see inside the outline, thinking off,
 3 calls per part, about 8 of the 60 minutes used.
 
+## Architecture v6: generators and one judge (decided 12 Nov, 23:30)
+
+Stop layering on the hull. Every add-on since `06` (cut lists, veto, shell, pockets, fill)
+moved the leaderboard by +-0.01 and added a guard; all of them modify the hull, so the hull's
+limit (~0.88) is ours. New structure:
+
+1. **Spec** from the brief (P0): bbox, volume, through-holes, bores. facts.json only for testing.
+2. **Independent generators**, each a complete solid, none trims another: `retrieval` (Fusion 360
+   Gallery, seconds, R1), `exact program` (model + report rounds, V1), `hull` (pass 1, frozen:
+   no more carving work), `box`.
+3. **One judge, tiers not a fitted estimate:** retrieved part with views matching (worst IoU ~0.98)
+   > exact program passing the gate > hull > box. The margin/veto/estimate rules stay only for
+   choosing among hull variants.
+4. **Cost order:** retrieval first; a retrieved part gets no model call. Hull always runs in
+   parallel as the net. Model time only for parts not retrieved.
+5. Model bodies (`FORGE_CANDIDATES`) off once the exact path matches their part 4 gain.
+
+Open: part 6's stated volume is below its own flange+cap volume (V1 lab note). Measure the real
+volume of retrieved parts against the briefs before trusting the volume gate.
+
 ## P0 (BEFORE V1): hidden parts come WITHOUT facts.json
 
 The organisers' extended practice set (`~/Downloads/extended-practice.zip`, 20 parts with briefs,
