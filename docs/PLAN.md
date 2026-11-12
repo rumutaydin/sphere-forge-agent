@@ -34,11 +34,14 @@ limit (~0.88) is ours. New structure:
    Gallery, seconds, R1), `exact program` (model + report rounds, V1), `hull` (pass 1, frozen:
    no more carving work), `box`.
 3. **One judge, tiers not a fitted estimate:** retrieved part with views matching (worst IoU ~0.98)
-   > exact program passing the gate > hull > box. The margin/veto/estimate rules stay only for
+   > exact program passing the gate > model body (today's rules) > hull > box. The margin/veto/estimate rules stay only for
    choosing among hull variants.
 4. **Cost order:** retrieval first; a retrieved part gets no model call. Hull always runs in
    parallel as the net. Model time only for parts not retrieved.
-5. Model bodies (`FORGE_CANDIDATES`) off once the exact path matches their part 4 gain.
+5. Model bodies stay ON (`FORGE_CANDIDATES=3`, thinking off) in the first combined run, as a tier
+   between exact programs and the hull (they beat the hull only under today's margin/veto rules).
+   Reason: the only model gain proven on the leaderboard (part 4, +0.06, twice). Drop them after
+   that submission if exact programs take part 4 or bodies win nothing.
 
 Open: part 6's stated volume is below its own flange+cap volume (V1 lab note). Measure the real
 volume of retrieved parts against the briefs before trusting the volume gate.
