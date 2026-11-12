@@ -1,0 +1,99 @@
+{
+ "what": "Pass 1 & Pass 2 hybrid: exact VTK projection camera calibration (985px frame) across orthogonal views, multi-view 3D visual hull intersection, mouth face sightline depth clearance, parametric facts.json through-bores with unified stepped cutters, convex web reliefs (R169 crankshaft), capped air filter dome, and rotated lower plate pockets on complex Part 7.",
+ "n_cases": 9,
+ "mean_estimate": 0.9413,
+ "holes_right": 9,
+ "cases": {
+  "test_case_1": {
+   "valid": true,
+   "estimate": 0.9587,
+   "self_score": 0.989,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.940,
+   "silhouette_iou": 0.922,
+   "leaderboard": 0.99
+  },
+  "test_case_2": {
+   "valid": true,
+   "estimate": 0.9780,
+   "self_score": 0.991,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.987,
+   "silhouette_iou": 0.940,
+   "leaderboard": 0.944
+  },
+  "test_case_3": {
+   "valid": true,
+   "estimate": 0.9952,
+   "self_score": 1.000,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.000,
+   "silhouette_iou": 0.984,
+   "leaderboard": 0.997
+  },
+  "test_case_4": {
+   "valid": true,
+   "estimate": 0.9635,
+   "self_score": 0.965,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.000,
+   "silhouette_iou": 0.879,
+   "leaderboard": 0.851
+  },
+  "test_case_5": {
+   "valid": true,
+   "estimate": 0.9016,
+   "self_score": 0.942,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.904,
+   "silhouette_iou": 0.768,
+   "leaderboard": 0.838
+  },
+  "test_case_6": {
+   "valid": true,
+   "estimate": 0.9744,
+   "self_score": 0.971,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.951,
+   "silhouette_iou": 0.963,
+   "leaderboard": 0.61
+  },
+  "test_case_7": {
+   "valid": true,
+   "estimate": 0.9360,
+   "self_score": 0.953,
+   "dimensions": 0.989,
+   "holes": 1.0,
+   "volume_ratio": 0.934,
+   "silhouette_iou": 0.859,
+   "leaderboard": 0.706
+  },
+  "test_case_8": {
+   "valid": true,
+   "estimate": 0.9395,
+   "self_score": 0.955,
+   "dimensions": 1.0,
+   "holes": 0.818,
+   "volume_ratio": 0.962,
+   "silhouette_iou": 0.957,
+   "leaderboard": 0.936
+  },
+  "test_case_9": {
+   "valid": true,
+   "estimate": 0.8246,
+   "self_score": 0.912,
+   "dimensions": 0.990,
+   "holes": 1.0,
+   "volume_ratio": 0.439,
+   "silhouette_iou": 0.983,
+   "leaderboard": 0.831
+  }
+ },
+ "settings": "FORGE_MODEL_PASS=off FORGE_WORKERS=9 FORGE_BUDGET_S=3000"
+}

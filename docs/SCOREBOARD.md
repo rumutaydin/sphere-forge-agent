@@ -62,6 +62,7 @@ are the estimate per practice part.
 | `04-no-model-faces` | 0.793 | not submitted | 0.91 | 0.86 | 0.92 | 0.83 | 0.85 | 0.49 | 0.61 | 0.87 | 0.80 | 9 of 9 |
 | `05-faces-qwen-think-cuts` | 0.814 | not submitted | 0.91 | 0.88 | 0.92 | 0.88 | 0.85 | 0.56 | 0.65 | 0.87 | 0.80 | 9 of 9 |
 | `06-no-model-depth` | 0.794 | not submitted | 0.91 | 0.86 | 0.92 | 0.83 | 0.85 | 0.49 | 0.62 | 0.87 | 0.80 | 9 of 9 |
+| `07-maximized-brep-hulls` | 0.941 | not submitted | 0.96 | 0.98 | 1.00 | 0.96 | 0.90 | 0.97 | 0.94 | 0.94 | 0.82 | 9 of 9 |
 
 - `00-boxes`: Bounding boxes (leaderboard 0.320 on 11 Nov)
 - `00-qwen-picked`: Hand-picked model candidates of 11 Nov (leaderboard 0.658)
