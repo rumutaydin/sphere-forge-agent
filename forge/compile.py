@@ -524,7 +524,10 @@ def body_sources(task) -> list[tuple[str, object]]:
     # The tightest hull again, with the space in front of every face a bore starts from removed
     # (forge/layers.py): pockets and recessed faces that no outline shows.
     hulls = [b for n, b in out if n == "hull5"] or [b for n, b in out if n == "hull3"]
-    if hulls and task.facts.get("cylindrical_holes_and_bores"):
+    import os
+
+    faces_on = os.environ.get("FORGE_FACES", "on").lower() not in ("off", "0", "no", "false")
+    if hulls and faces_on and task.facts.get("cylindrical_holes_and_bores"):
         try:
             from .layers import carve_mouth_faces
 

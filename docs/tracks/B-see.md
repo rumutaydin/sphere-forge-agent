@@ -92,3 +92,9 @@ synthesis, render-and-compare, differentiable rendering.
 Append one line per experiment: date, idea, number before → after, kept or dropped.
 
 - 11 Nov: self-score vs leaderboard on seven built parts: gap 0.00–0.27, all in shape. Silhouette check is now the top item; calibration files in `bench/calibration/`.
+- 12 Nov: framing solved: the projected bounding box is fitted into 985 of 1024 px and centred in all eight views; outline stroke is 1 px outside the edge. Silhouette IoU of an exact part against its views 0.985 → 0.997. Kept (`forge/vision.py`).
+- 12 Nov: silhouette IoU vs leaderboard shape points on 16 calibration files: rank correlation 0.93 (volume ratio 0.95, area ratio 0.76). The gate in the old plan (beat the volume ratio) was not passed on its own; `0.14 + 0.16 holes + 0.62 volume ratio × IoU` predicts the leaderboard with leave-one-out error 0.07 and is what selection uses. Kept as `forge/compile.py: estimate`.
+- 12 Nov: visual hull as B-rep (5 prisms): true local score on our 12 reference parts 0.499 (boxes) → 0.921. Hollow parts fail: enclosure 0.68, elbow 0.53. Kept.
+- 12 Nov: faces that bores start from, free space on the line of sight removed (`forge/layers.py: carve_mouth_faces`): practice estimate 0.773 → 0.794. Kept.
+- 12 Nov: depth of flat faces by plane sweep into the isometric view (`face_depths`, `carve_layers`): finds part 5's front face at 22.24 mm (exact), but no gain on the practice parts and accidental matches on small regions. Not wired in; needs the renderer of task B1 to test against answers.
+- 12 Nov: today's tasks are B1–B4 in `docs/PLAN.md`.

@@ -4,12 +4,15 @@ How the agent works after the kickoff rules. Read this first.
 
 ## The idea in one paragraph
 
-A model **writes a CAD program**, a real CAD kernel runs it, and we **check the result
-against numbers the organisers give us** for every part: exact bounding box, volume,
-surface area and through-hole count (`facts.json`). The model fixes what the check
-flags, we do that for several candidates, and hand in the one that matches the facts
-best as a single STEP file. If nothing builds, we hand in a block of the right size,
-because a missing file scores 0 and a block scores about 0.3.
+Code builds as much of the part as it can, with no model: the outlines of the eight views
+give a solid the true part must lie inside (a visual hull), `facts.json` gives every bore
+and the number of through-holes to hit, and a visible bore rim gives the plane of the
+face around it. That part is written to the output folder within minutes. Then a model
+may try to improve it, by writing the body or by naming empty regions; every candidate
+is **checked against numbers the organisers give us** (bounding box, volume, area, hole
+count) and against the outlines of the views, and replaces the file only if it scores
+higher. If nothing at all builds, a block of the right size is already there, because a
+missing file scores 0 and a block scores about 0.3.
 
 ## What we are given and what we return
 
@@ -34,27 +37,43 @@ handedness do matter: no scaling, no mirroring.
 
 ```mermaid
 flowchart TD
-    T(["Task"]) --> FB["0. floor<br/>write a bounding-box solid at once"]
-    T --> P["1. plan<br/>brief + facts + 8 views to build plan"]
-    P --> G["2. generate<br/>plan to CAD program, N candidates"]
-    G --> R["3. repair<br/>run it, fix crashes"]
-    R --> K{"self-check<br/>against facts.json"}
-    K --> V["4. verify<br/>critic sees the check, target views, our views"]
-    V -- "corrected program" --> R
-    V --> S["5. select<br/>highest self-score"]
-    S --> OUT(["test_case_n.stp"])
-    FB -. "used only if nothing builds" .-> OUT
+    T(["Task"]) --> FB["0. floor<br/>bounding-box solid, written at once"]
+    T --> P1["1. pass 1, no model (forge/compile.py)<br/>hull or revolve, face carving, bores to the hole count"]
+    P1 --> K{"estimate:<br/>facts + silhouettes"}
+    K --> P2["2. pass 2, model (forge/pipeline.py), worst parts first"]
+    P2 --> G["body program<br/>(stages/build.py)"]
+    P2 --> C["list of empty regions<br/>(stages/carve.py)"]
+    G --> FIN["finished by code:<br/>facts frame, hull trim, bores"]
+    FIN --> K
+    C --> CHK["each cut checked:<br/>solid, holes, silhouettes, volume"]
+    CHK --> K
+    K -- "higher than the file on disk" --> OUT(["test_case_n.stp"])
+    FB --> OUT
 
     BE[["CAD backend: CadQuery"]]
     LLM[["model endpoint"]]
-    R <--> BE
-    P <-.-> LLM
+    FIN <--> BE
     G <-.-> LLM
-    V <-.-> LLM
+    C <-.-> LLM
 
     classDef swap stroke-dasharray: 6 4,stroke-width:2px;
     class BE,LLM swap;
 ```
+
+The output file is always the best part known so far. Pass 1 runs each part in its own
+process with a time limit and overwrites the file itself whenever it finds a better
+body; pass 2 does the same per candidate. Stopping the run at any moment loses nothing.
+
+### Pass 1 in detail (`forge/compile.py`, `forge/vision.py`, `forge/layers.py`)
+
+| Step | What it does | Why it is sound |
+|---|---|---|
+| Silhouettes | part against white in each view, eroded one pixel for the outline stroke | the projected bounding box is fitted into 985 of 1024 px and centred, so pixels map to mm exactly |
+| Hull | each outline extruded through the box along its view direction; five prisms intersected | the part lies inside every prism; outer dimensions are exact |
+| Revolve | if the view along an axis is a disc, the half outline of a side view is revolved | turned parts come out with true cylinders and cones |
+| Face carving | where a view shows a bore's rim at the place the facts give, the flat patch around it is a face at a known plane; the space toward the camera is cut away | we see that face, so the line of sight in front of it is empty |
+| Bores | every listed bore, pattern by pattern: as listed, opened to its nearer side, or through, until the through-hole count equals the facts | the count is 20% of the score and is exact in the facts |
+| Estimate | `0.14 + 0.16 holes + 0.62 volume ratio × silhouette IoU`, minus a penalty for wrong dimensions | fitted on 16 files with leaderboard values; a stand-in, see the scoreboard |
 
 ## The self-check: scoring without the answer
 
@@ -81,20 +100,25 @@ what closes that gap (Track B).
 
 ### `forge/pipeline.py` — the orchestrator (shared)
 
-`Agent.solve(task, out_dir, deadline)` runs the stages, candidates in parallel, and
-returns a summary whose `step` is the file to hand in. It catches a dead model endpoint
-and still returns the fallback block. Keep it thin.
+`Agent.solve(task, out_dir, deadline, publish, floor)` runs the model pass for one
+task: body candidates and cut lists in parallel, each offered to the output file as soon
+as it exists. `floor` is the no-model part from pass 1. A failed call ends one
+candidate, never the part. Keep it thin.
 
 ### `forge/run.py` and `scripts/main.py` — the run the organisers execute (Track A)
 
 `scripts/main.py --input_dir --output_dir` is the entry point their container calls.
-`run_all` writes a bounding-box `.stp` for every task before any model call, then solves
-tasks in parallel and overwrites each file when a real part is ready. It keeps the whole
-run inside a time budget (default 50 of the 60 minutes).
+`run_all` writes a bounding-box `.stp` for every task, runs pass 1 for all tasks at once
+(one process each, `FORGE_PASS1_S` seconds at most), then the model pass, worst parts
+first, and keeps the whole run inside a time budget (default 50 of the 60 minutes).
 
 Settings, all environment variables so they freeze with the image: `OPENAI_BASE_URL`,
-`OPENAI_API_KEY`, `OPENAI_MODEL`, `FORGE_CANDIDATES` (3), `FORGE_ROUNDS` (2),
-`FORGE_WORKERS` (3 tasks at once), `FORGE_BUDGET_S` (3000), `FORGE_MAX_TOKENS` (8000).
+`OPENAI_API_KEY`, `OPENAI_MODEL`, `FORGE_MODEL_PASS` (on), `FORGE_FACES` (on),
+`FORGE_CANDIDATES` (2 bodies per part), `FORGE_CARVE` (0 cut lists per part),
+`FORGE_ROUNDS` (0 critic rounds), `FORGE_WORKERS` (9), `FORGE_BUDGET_S` (3000),
+`FORGE_PASS1_S` (600), `FORGE_SKIP_ABOVE` (0.90: parts already this good skip the model),
+`FORGE_THINKING` (off), `FORGE_REASONING_EFFORT`, `FORGE_MAX_TOKENS` (6000),
+`FORGE_LLM_TIMEOUT_S` (300), `FORGE_TEMPERATURE`, `FORGE_SEED`.
 
 ### `forge/llm.py` — model access (Track A)
 
@@ -127,7 +151,8 @@ Lays out brief, facts and the eight labelled views for the model, and asks for a
 plan: base body, features by volume, the list of through-holes (which must equal the
 facts), and the gaps the brief leaves that must be read from the views.
 
-Weak today: the views are only shown to the model. Nothing measures them.
+The plan call is gone (the brief is the plan); `task_content` is what remains in use.
+The views are measured in `forge/vision.py` and `forge/layers.py`.
 
 ### `forge/render.py`, `forge/geometry.py` — geometry tools (Track B)
 

@@ -95,5 +95,6 @@
    "area_ratio": 0.722,
    "silhouette_iou": 0.996
   }
- }
+ },
+ "settings": "FORGE_MODEL_PASS=off FORGE_WORKERS=9 FORGE_BUDGET_S=3000"
 }

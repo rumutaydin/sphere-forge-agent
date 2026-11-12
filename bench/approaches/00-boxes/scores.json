@@ -1,7 +1,7 @@
 {
  "what": "Bounding boxes (leaderboard 0.320 on 11 Nov)",
  "n_cases": 9,
- "leaderboard": null,
+ "leaderboard": 0.32,
  "mean_estimate": 0.3266,
  "holes_right": 3,
  "cases": {
@@ -95,5 +95,6 @@
    "area_ratio": 0.597,
    "silhouette_iou": 0.8153
   }
- }
+ },
+ "settings": null
 }

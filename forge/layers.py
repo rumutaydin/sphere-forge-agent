@@ -116,9 +116,12 @@ def carve_layers(body, task, min_depth_frac: float = 0.004, log: list | None = N
         corners = np.array([[x, y, z] for x in (0, size[0]) for y in (0, size[1]) for z in (0, size[2])]) @ cam.f
         near, extent = corners.min(), np.ptp(corners)
         sure = [f for f in faces if f["uniform"] >= 0.7 and f["edge"] >= 0.45]
+        part_px = sum(f["mask"].sum() for f in faces) or 1
         for f in sure:
-            if f["depth"] < min_depth_frac * max(size) or f["score"] < 1.25 * f["score0"]:
+            if f["depth"] < min_depth_frac * max(size) or f["score"] < 1.5 * f["score0"]:
                 continue
+            if f["uniform"] < 0.85 or f["edge"] < 0.6 or f["mask"].sum() < 0.004 * part_px:
+                continue        # small or half-hidden regions match by accident; only clear cases cut
             grown = ndimage.binary_dilation(f["mask"], iterations=2)
             carve = ndimage.binary_fill_holes(grown)
             for g in sure:      # islands that stand prouder than this face stay
@@ -305,7 +308,7 @@ def carve_mouth_faces(body, task, log: list | None = None, t_end: float | None =
                 tools.append(cq.Solid.extrudeLinear(cq.Face.makeFromWires(outer, inners), cq.Vector(*(-cam.f * reach))))
             new = _largest_solid(shape.cut(*tools))
             removed = shape.Volume() - new.Volume()
-            ok = new.isValid() and removed > 1e-5 * shape.Volume()
+            ok = new.isValid() and removed > 2e-4 * shape.Volume()     # a sliver is not worth a silhouette check
             why = "nothing in front of it" if not ok else ""
             if ok and vol_target and new.Volume() < 0.985 * vol_target:
                 ok, why = False, f"volume would fall to x{new.Volume() / vol_target:.2f}"

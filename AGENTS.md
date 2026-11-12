@@ -4,7 +4,7 @@ You are working in a hackathon repo (Sphere Forge #1, code freeze Friday 08:00).
 agent here turns a design brief, a `facts.json` and eight orthographic views of a
 mechanical part into one STEP solid. It is scored against a hidden target:
 `0.30 volume + 0.30 surface + 0.20 dimensions + 0.20 holes`, after rigid alignment.
-Three people work in parallel, each with their own coding agent. Your job is to raise
+Four people work in parallel (Robin plus one person on each track), each with their own coding agent. Your job is to raise
 the score inside one track without breaking the other two.
 
 ## Before you write anything
@@ -23,8 +23,8 @@ the score inside one track without breaking the other two.
 | Track | Paths |
 |---|---|
 | A — Ship | `forge/run.py` `forge/llm.py` `forge/score.py` `forge/cases.py` `forge/__main__.py` `scripts/` `bench/` `results/` `artifacts/` `.ci/` `Dockerfile` `.github/` `pyproject.toml` |
-| B — See | `forge/facts.py` `forge/render.py` `forge/geometry.py` `forge/stages/understand.py` `forge/vision.py` |
-| C — Build | `forge/stages/build.py` `forge/stages/verify.py` `forge/stages/select.py` `forge/backends/` `forge/library/` |
+| B — See | `forge/facts.py` `forge/render.py` `forge/geometry.py` `forge/stages/understand.py` `forge/vision.py` `forge/layers.py` |
+| C — Compile | `forge/compile.py` `forge/stages/build.py` `forge/stages/carve.py` `forge/stages/verify.py` `forge/stages/select.py` `forge/backends/` `forge/library/` |
 | Shared | `forge/types.py` `forge/pipeline.py` `AGENTS.md` `docs/ARCHITECTURE.md` `docs/STRATEGY.md` |
 
 Edit only your track's paths plus its brief in `docs/tracks/` and its tests in `tests/`.
@@ -38,17 +38,22 @@ measure -> change one thing -> measure -> keep or revert -> write it down
 ```
 
 1. `uv run pytest -q` passes before and after. It needs no model.
-2. Baseline: `uv run python -m forge eval --inputs artifacts/inputs --tag <track>-<idea>-before`
-   (`--only 1 5` for a quick subset while iterating).
+2. Baseline, no model, 6 minutes: `uv run python scripts/compile_all.py --tag <track>-<idea>-before`
+   (`--only test_case_1 test_case_5` for a quick subset), and
+   `uv run python scripts/bench_nomodel.py --tag <track>-<idea>-bench-before` for a true
+   local score on our own parts. With the model:
+   `uv run python -m forge eval --inputs artifacts/inputs --tag <track>-<idea>-before`.
 3. Make the change.
 4. Same command with `-after`, then `uv run python -m forge board`.
 5. If the number did not improve beyond run-to-run noise, revert. Say so plainly.
 6. Append one line to the Lab notes of your track brief: date, idea, before → after, kept or dropped.
 
-There are three numbers. The **leaderboard** is the truth and needs a submission. The
+There are four numbers. The **leaderboard** is the truth and needs a submission. The
 **local score** needs a target STEP, which only our own cases in `bench/cases/` have.
 The **self-score** needs only `facts.json`; it is exact for dimensions and holes and a
-hint for the rest. Say which one you are quoting.
+hint for the rest. The **estimate** adds the silhouette check against the eight views
+and is what candidates are ranked by; it was fitted on 16 files and is a stand-in, not
+a prediction. Say which one you are quoting.
 
 ## Rules
 
@@ -65,7 +70,9 @@ hint for the rest. Say which one you are quoting.
 - **All settings are environment variables** frozen in the image (`OPENAI_*`, `FORGE_*`).
   No secrets in the repo; `*.env` files are ignored by git.
 - **No new dependency** without telling the human; three people share one lockfile.
-- **Keep `forge/pipeline.py` thin.** Logic belongs in a stage.
+- **Keep `forge/pipeline.py` thin.** Logic belongs in a stage or in `forge/compile.py`.
+- **A cut into a silhouette body must be checked**: valid solid, hole count not worse, no
+  silhouette changed, volume not below the facts. See `forge/layers.py` for the pattern.
 - **Generated CAD programs run in a subprocess with a timeout.** Keep it that way.
 - Branch `<track>/<idea>`, pull request into `main`, description states before → after.
   A merge to `main` is a submission to the leaderboard: only merge with all nine
@@ -82,6 +89,11 @@ uv run python -m forge eval --inputs artifacts/inputs --only 1 3 --tag c-example
 uv run python -m forge check artifacts/outputs/test_case_1.stp artifacts/inputs/test_case_1/facts.json
 uv run python -m forge score mine.step bench/cases/03_flange/answer.step
 uv run python -m forge board
+uv run python scripts/compile_all.py -o runs/compile-mine --tag c-example      # nine practice parts, no model
+uv run python scripts/bench_nomodel.py --tag c-example-bench                   # true local score, our 12 parts
+uv run python scripts/save_approach.py <name> <outputs_dir> "what it is"       # file nine parts with local numbers
+uv run python scripts/approaches_table.py
+scripts/submit_approach.sh <name>                                              # commit an approach; does not push
 ```
 
 `OPENAI_BASE_URL`, `OPENAI_API_KEY` and `OPENAI_MODEL` must point at an OpenAI-compatible

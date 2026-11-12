@@ -1,7 +1,7 @@
 {
  "what": "Hand-picked model candidates of 11 Nov (leaderboard 0.658)",
  "n_cases": 9,
- "leaderboard": null,
+ "leaderboard": 0.658,
  "mean_estimate": 0.6518,
  "holes_right": 6,
  "cases": {
@@ -95,5 +95,6 @@
    "area_ratio": 0.597,
    "silhouette_iou": 0.8153
   }
- }
+ },
+ "settings": null
 }

@@ -104,3 +104,8 @@ Append one line per experiment: date, idea, number before → after, kept or dro
 
 - 11 Nov (branch `c/facts-driven`): bores cut from facts + fitted `# FIT` dimensions + truncated-reply fix: parts built 3 → 4 as written, 7 with candidates on disk; hand-picked set scores 0.658 on the leaderboard. Kept, not merged.
 - 11 Nov: fitting ran the kernel up to 64 times per candidate and can hide shape errors (part 5). Cap it and run it once, on the chosen candidate.
+- 12 Nov: bores cut from the facts pattern by pattern until the through-hole count matches (`forge/compile.py: cut_holes_to_genus`): holes 1.00 on 9 of 9 with no model (before: 7 of 9 built at all). Kept.
+- 12 Nov: hole count from B-rep topology (`brep_genus`) instead of meshing: same answer on 107 files, pass 1 from 19 min to 6 min. Kept.
+- 12 Nov: model writes the body only, trimmed by the hull, bores by code: beats the no-model part on parts 4 and 6 only (thinking off), on 7 parts by small margins (thinking on). Kept as pass 2.
+- 12 Nov: model lists empty regions as boxes and cylinders, code cuts and checks each (`forge/stages/carve.py`): most proposals rejected (silhouette changed, hole count changed, volume too low); part 4 0.825 → 0.851. Kept behind `FORGE_CARVE=1`; placement of an accepted cut is not verified.
+- 12 Nov: today's tasks are C1–C5 in `docs/PLAN.md`.
