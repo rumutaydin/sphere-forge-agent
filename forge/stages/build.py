@@ -181,7 +181,8 @@ def run_with_repair(llm: LLM, backend: CadBackend, cand: Candidate, task: Task, 
         ran = res.ok and not res.error
         problem = ""
         if ran:
-            if kept is None or check.get("estimate", -1) > kept[2].get("estimate", -1):
+            rank = lambda c: (round(c.get("estimate", -1), 6), c.get("self_score", -1))   # self-score breaks ties (no views)
+            if kept is None or rank(check) > rank(kept[2]):
                 kept = (cand.code, res, check)
             problem = envelope_problem(res, task.facts)
             budget = "" if problem else volume_problem(check, task.facts)
