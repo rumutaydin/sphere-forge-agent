@@ -14,7 +14,9 @@ A new session can start from this page alone.
 | no model, with face and depth carving (`06`) | 0.856 |
 | the same plus the model pass (`05`, our best) | **0.870** |
 | the same with helper-API bodies and cut lists (`09`) | 0.863 |
-| best value per part across all submissions | 0.873 (a ceiling, not a run) |
+| radial grooves on part 6 (`12`) | 0.871 |
+| pockets where a view contradicts a flat lid (`14`, **our best, on `main`**) | **0.877** |
+| best value per part across all submissions | 0.883 (a ceiling, not a run) |
 
 Dimensions and holes are exact on all nine parts. Everything left is **shape inside
 the outline**, and almost all of it is in three parts: 6 (0.61–0.66), 7 (0.68–0.71),
@@ -220,9 +222,10 @@ all flat faces with one normal have one shade, so where our body has a flat lid 
 view shows another shade, the lid is not there. The opening is cut with straight walls to
 the depth where the view draws the wall/floor line, or else to 0.75 of the deepest cut that
 keeps the part whole; kept only if solid, hole count, silhouettes and volume hold and the
-line drawing improves in the view facing the opening. Results (estimate, not leaderboard):
+line drawing improves in the view facing the opening. **Leaderboard, approach `14`: 0.877
+(from 0.871); part 7 0.706 -> 0.755, the other eight unchanged.** Estimate:
 part 7 0.618 -> 0.658 (volume x1.89 -> x1.70, tray open); other parts unchanged; 12
-reference parts 0.949 -> 0.949. Not yet on the leaderboard. Open: the depth guess (0.75) is
+reference parts 0.949 -> 0.949. Open: the depth guess (0.75) is
 a prior, try 0.9 on a submission; part 9's top opening (5886 mm2) is found but refused;
 part 5's back openings break the hole count.
 

@@ -15,6 +15,34 @@ set is about 0.8, against 0.658 submitted yesterday and 0.320 for boxes. The est
 give the real values. What remains hard is material hidden from every outline: hollow interiors, fins,
 sloped pockets (parts 6 and 7).
 
+## State at 17:30 UTC, 12 Nov (read this first)
+
+**Best: 0.877, approach `14-pockets`, on `main` at `bb40232`.** Per part: 0.990, 0.944,
+0.997, 0.913, 0.838, 0.685, 0.755, 0.936, 0.831. Against `12` (0.871) only part 7 moved
+(0.706 -> 0.755): `forge/layers.py: carve_pockets` opened its tray (task T11 in PLAN.md).
+All work is on branch `b/edge-score` (worktree `.worktrees/helper`), which is `main` plus
+one tidy-up commit (`81f5fed`, no change to outputs; pushing it to `main` would count as
+a submission of the same files, so it rides along with the next one).
+
+Model: Qwen3.8-27B on `clinical-ivory-barnacle` has done what it can (its only reliable
+gain is part 4, +0.06). Robin is moving to a bigger model on a 2x RTX PRO 6000 instance
+(`homely-white-cattle` was deploying at 17:00 UTC). **The 27B endpoint stays the fallback
+until a new one has beaten 0.877 on a submission**; the Dockerfile on `main` expects it.
+
+Next, in this order:
+1. Bigger model: follow `docs/tasks/T5-model-ablation.md`. Same settings as the Dockerfile
+   line, new `OPENAI_*`; compare leaderboard values of parts 4, 5, 6, 7, 9 with `14`.
+   One Docker run took 474 s with 27B.
+2. T12 (PLAN.md): the render-and-compare rounds (`FORGE_ROUNDS=1`) behind the edge veto.
+3. No model needed: `FORGE_POCKET_DEPTH=0.9` as one submission (part 7 is still at
+   volume x1.70; the 0.75 depth is a prior). Part 9's top opening (5886 mm2) is found by
+   `contradicted_faces` but refused; part 5's back openings break the hole count.
+4. Freeze list in PLAN.md ("Do not forget before the freeze"): public endpoint tested from
+   outside the tunnel, final Dockerfile line, instance left running through judging.
+
+Before staging a submission: `git fetch`, look at `origin/main` (a teammate pushed a trial
+there on 12 Nov), merge, then `scripts/submit_approach.sh <name>`; Robin pushes.
+
 ## State at midday, 12 Nov
 
 Six submissions today; best 0.870 (`05`). The clean configuration (no cut lists,
