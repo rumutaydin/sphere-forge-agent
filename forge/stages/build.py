@@ -228,14 +228,15 @@ def floor_note(floor: dict | None, facts: dict) -> str:
     c = floor["check"]
     over, area, target = c.get("volume_ratio", 1.0), c.get("area_ratio", 1.0), float(facts["volume_mm3"])
     lines = ["VOLUME BUDGET (computed, exact):",
-             f"- the real part: {target:.0f} mm^3, surface {facts.get('surface_area_mm2', 0):.0f} mm^2",
+             f"- the real part: {target:.0f} mm^3"
+             + (f", surface {facts['surface_area_mm2']:.0f} mm^2" if facts.get("surface_area_mm2") else ""),
              f"- a solid that fills the outlines of all eight views, with the listed bores cut: {over * target:.0f} mm^3 "
-             f"(x{over:.2f}), surface x{area:.2f} of the real part's"]
+             f"(x{over:.2f})" + (f", surface x{area:.2f} of the real part's" if facts.get("surface_area_mm2") else "")]
     if over > 1.05:
         lines.append(f"- so {(over - 1) * target:.0f} mm^3 inside the outline is EMPTY in the real part "
                      f"({1 - 1 / over:.0%} of the outline solid). No outline shows where; the shading and the lines inside "
                      "the views do, the two isometric views most of all.")
-        if area < 0.8:
+        if area < 0.8 and facts.get("surface_area_mm2"):
             lines.append("- the real surface is much larger than the outline solid's: expect thin fins or ribs with deep "
                          "gaps between them, an open tray, or a thin-walled shell, not a few shallow pockets.")
         lines.append("Before the code, state in one line where that empty volume is and which view shows it. "
