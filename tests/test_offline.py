@@ -183,3 +183,19 @@ def test_hole_count_from_topology_matches_the_mesh(plate, tmp_path):
     for res, expected in ((plate, 4), (gear, 1), (ball, 1)):
         shape = cq.importers.importStep(str(res.step_path)).val()
         assert brep_genus(shape) == genus(shape_to_mesh(shape)) == expected
+
+
+def test_a_body_off_the_envelope_is_sent_back(plate, task, tmp_path):
+    """A body that runs but sits in the wrong place gets one exact correction request."""
+    shifted = ("from forge.library import box, cylinder, cut\n"
+               "holes = [cylinder((x, y, -24), (x, y, 0), 6) for x, y in ((-32, -17), (32, -17), (-32, 17), (32, 17))]\n"
+               "result = cut(box((-40, -25, -12), (40, 25, -4)), holes)\n")       # measured from the centre, not the corner
+    right = ("from forge.library import box, cylinder, cut\n"
+             "holes = [cylinder((x, y, -1), (x, y, 9), 6) for x, y in ((8, 8), (72, 8), (8, 42), (72, 42))]\n"
+             "result = cut(box((0, 0, 0), (80, 50, 8)), holes)\n")
+    llm = ScriptedLLM([fenced(shifted), fenced(right)])
+    summary = Agent(llm, get_backend(), n_candidates=1).solve(load_tasks(task)[0], tmp_path)
+    log = summary["candidates"][0]["log"]
+    assert "envelope wrong" in log[0] and "envelope wrong" not in log[1]
+    assert "X: your body spans -40.00 .. 40.00, it must span 0 .. 80.00" in llm.calls[1][1][-1]["text"]
+    assert score(summary["step"], plate.step_path)["score"] > 0.99

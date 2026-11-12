@@ -93,6 +93,10 @@ def main() -> int:
         mesh = shape_to_mesh(shape)
         info["genus"] = genus(mesh)  # through-hole count, as the scorer counts it
         info["bbox_size"] = [float(e) for e in mesh.extents]   # the kernel's own box can be loose on curved faces
+        import forge.compile as _fc
+
+        if _fc.RAW_BBOX:
+            info["raw_bbox"] = _fc.RAW_BBOX
         task_dir = os.environ.get("FORGE_TASK_DIR")
         if task_dir and info["valid"] and info["solids"] == 1:
             # score against the task's facts and views here, in the subprocess

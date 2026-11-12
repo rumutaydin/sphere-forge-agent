@@ -23,6 +23,7 @@ from .vision import AXIS_VIEWS, Camera, box_size, image_mask, mask_polygons
 
 AXES = {"X": (1.0, 0.0, 0.0), "Y": (0.0, 1.0, 0.0), "Z": (0.0, 0.0, 1.0)}
 ISO_VIEWS = ("view_6_iso_front_right_top", "view_7_iso_back_left_bottom")
+RAW_BBOX = None
 MIRROR = {"view_0_front": "view_1_back", "view_2_left": "view_3_right", "view_4_top": "view_5_bottom"}
 
 
@@ -672,6 +673,8 @@ def finish_body(result, facts_path: str, hull: str | None = None, holes: str = "
     if isinstance(shape, cq.Compound) and len(shape.Solids()) == 1:
         shape = shape.Solids()[0]
     bb = shape.BoundingBox()
+    global RAW_BBOX        # where the model's body really was, for the envelope repair message
+    RAW_BBOX = {"min": [bb.xmin, bb.ymin, bb.zmin], "max": [bb.xmax, bb.ymax, bb.zmax]}
     shape = shape.translate(cq.Vector(-bb.xmin, -bb.ymin, -bb.zmin))
     if hull and Path(hull).is_file():
         trimmed = _largest_solid(shape.intersect(cq.importers.importStep(hull).val()))
