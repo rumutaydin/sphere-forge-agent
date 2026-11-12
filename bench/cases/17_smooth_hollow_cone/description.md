@@ -1,0 +1,1 @@
+A hollow smooth cone with no grooves. A plain frustum with radius 45 mm at z=0 and radius 25 mm at z=60. A top disc of diameter 60 mm sits on top (z 60..68). The part is hollowed with a uniform 3 mm wall thickness. A blind bore of 12 mm diameter and 6 mm depth is cut into the bottom face on the axis.

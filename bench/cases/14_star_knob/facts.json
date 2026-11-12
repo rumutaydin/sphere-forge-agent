@@ -1,0 +1,18 @@
+{
+ "bounding_box_mm": {
+  "x": 60.0,
+  "y": 60.0,
+  "z": 48.0
+ },
+ "volume_mm3": 60807.0,
+ "surface_area_mm2": 14159.9,
+ "solids": 1,
+ "through_holes_genus": 1,
+ "faces": 52,
+ "face_types": {
+  "BSPLINE": 24,
+  "PLANE": 26,
+  "CYLINDER": 2
+ },
+ "_note": "positions in mm from the bounding-box min corner, in the frame of the 8 views"
+}
