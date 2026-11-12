@@ -1,0 +1,99 @@
+{
+ "what": "Pass 1 only, no model call: visual hull or revolve from the eight views, bores from facts.json fitted to the through-hole count. 8 min wall clock.",
+ "n_cases": 9,
+ "leaderboard": null,
+ "mean_estimate": 0.7729,
+ "holes_right": 9,
+ "cases": {
+  "test_case_1": {
+   "valid": true,
+   "estimate": 0.8799,
+   "self_score": 0.9812,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.061,
+   "area_ratio": 0.994,
+   "silhouette_iou": 0.9938
+  },
+  "test_case_2": {
+   "valid": true,
+   "estimate": 0.8636,
+   "self_score": 0.9743,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.086,
+   "area_ratio": 0.993,
+   "silhouette_iou": 0.9886
+  },
+  "test_case_3": {
+   "valid": true,
+   "estimate": 0.9153,
+   "self_score": 0.998,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.996,
+   "area_ratio": 0.997,
+   "silhouette_iou": 0.9981
+  },
+  "test_case_4": {
+   "valid": true,
+   "estimate": 0.8255,
+   "self_score": 0.9201,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.169,
+   "area_ratio": 1.139,
+   "silhouette_iou": 0.9925
+  },
+  "test_case_5": {
+   "valid": true,
+   "estimate": 0.8043,
+   "self_score": 0.8931,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.219,
+   "area_ratio": 0.824,
+   "silhouette_iou": 0.9936
+  },
+  "test_case_6": {
+   "valid": true,
+   "estimate": 0.4895,
+   "self_score": 0.6137,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 3.234,
+   "area_ratio": 0.403,
+   "silhouette_iou": 0.9935
+  },
+  "test_case_7": {
+   "valid": true,
+   "estimate": 0.6084,
+   "self_score": 0.8325,
+   "dimensions": 0.995,
+   "holes": 1.0,
+   "volume_ratio": 1.957,
+   "area_ratio": 0.934,
+   "silhouette_iou": 0.9851
+  },
+  "test_case_8": {
+   "valid": true,
+   "estimate": 0.8702,
+   "self_score": 0.9623,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.073,
+   "area_ratio": 0.942,
+   "silhouette_iou": 0.9881
+  },
+  "test_case_9": {
+   "valid": true,
+   "estimate": 0.6994,
+   "self_score": 0.8163,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.54,
+   "area_ratio": 0.738,
+   "silhouette_iou": 0.9947
+  }
+ }
+}

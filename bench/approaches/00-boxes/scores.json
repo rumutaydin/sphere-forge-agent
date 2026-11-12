@@ -1,0 +1,99 @@
+{
+ "what": "Bounding boxes (leaderboard 0.320 on 11 Nov)",
+ "n_cases": 9,
+ "leaderboard": null,
+ "mean_estimate": 0.3266,
+ "holes_right": 3,
+ "cases": {
+  "test_case_1": {
+   "valid": true,
+   "estimate": 0.3956,
+   "self_score": 0.6475,
+   "dimensions": 1.0,
+   "holes": 0.0,
+   "volume_ratio": 1.994,
+   "area_ratio": 1.01,
+   "silhouette_iou": 0.8252
+  },
+  "test_case_2": {
+   "valid": true,
+   "estimate": 0.3086,
+   "self_score": 0.4947,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 22.234,
+   "area_ratio": 3.694,
+   "silhouette_iou": 0.3429
+  },
+  "test_case_3": {
+   "valid": true,
+   "estimate": 0.3651,
+   "self_score": 0.5495,
+   "dimensions": 1.0,
+   "holes": 0.0,
+   "volume_ratio": 2.12,
+   "area_ratio": 1.442,
+   "silhouette_iou": 0.773
+  },
+  "test_case_4": {
+   "valid": true,
+   "estimate": 0.3412,
+   "self_score": 0.5865,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 6.776,
+   "area_ratio": 2.109,
+   "silhouette_iou": 0.4608
+  },
+  "test_case_5": {
+   "valid": true,
+   "estimate": 0.4522,
+   "self_score": 0.6205,
+   "dimensions": 1.0,
+   "holes": 0.0,
+   "volume_ratio": 1.693,
+   "area_ratio": 0.811,
+   "silhouette_iou": 0.8554
+  },
+  "test_case_6": {
+   "valid": true,
+   "estimate": 0.3599,
+   "self_score": 0.6467,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 7.079,
+   "area_ratio": 0.681,
+   "silhouette_iou": 0.6953
+  },
+  "test_case_7": {
+   "valid": true,
+   "estimate": 0.1906,
+   "self_score": 0.5067,
+   "dimensions": 1.0,
+   "holes": 0.0,
+   "volume_ratio": 7.204,
+   "area_ratio": 1.132,
+   "silhouette_iou": 0.5998
+  },
+  "test_case_8": {
+   "valid": true,
+   "estimate": 0.2753,
+   "self_score": 0.5754,
+   "dimensions": 1.0,
+   "holes": 0.0,
+   "volume_ratio": 3.389,
+   "area_ratio": 0.956,
+   "silhouette_iou": 0.745
+  },
+  "test_case_9": {
+   "valid": true,
+   "estimate": 0.2512,
+   "self_score": 0.4456,
+   "dimensions": 1.0,
+   "holes": 0.0,
+   "volume_ratio": 4.507,
+   "area_ratio": 0.597,
+   "silhouette_iou": 0.8153
+  }
+ }
+}

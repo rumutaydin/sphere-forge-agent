@@ -106,7 +106,7 @@ def test_a_failed_call_does_not_lose_the_part(plate, task, tmp_path):
     llm = FailsOnSecondCall([fenced(PLATE)])
     out = tmp_path / "out.stp"
     summary = Agent(llm, get_backend(), n_candidates=1, rounds=1).solve(load_tasks(task)[0], tmp_path / "w", publish=out)
-    assert summary["chosen"] == "model candidate 0" and summary["self_check"]["holes"] == 1.0
+    assert summary["chosen"] == "model body 0" and summary["self_check"]["holes"] == 1.0
     assert score(out, plate.step_path)["score"] > 0.99        # written when it was built, not at the end
 
 
@@ -162,3 +162,12 @@ def test_library_gear_is_callable_from_generated_code(tmp_path):
     res = get_backend().execute(code, tmp_path)
     assert res.ok and not res.error and res.measure["genus"] == 1
     assert max(res.measure["bbox_size"][:2]) == pytest.approx(44, abs=0.1)  # m * (z + 2)
+
+
+def test_cut_list_survives_a_truncated_reply():
+    from forge.stages.carve import parse_cuts
+
+    whole = '{"cuts": [{"shape": "box", "min": [0, 0, 0], "max": [1, 1, 1]}, {"shape": "cylinder", "centre": [1, 2, 3], "axis": "Z", "diameter": 4, "length": 5}]}'
+    assert len(parse_cuts("Here you go:\n" + whole)) == 2
+    assert len(parse_cuts(whole[:whole.index('{"shape": "cylinder"') + 30])) == 1
+    assert parse_cuts("no json here") == []

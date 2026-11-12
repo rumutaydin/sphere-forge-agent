@@ -20,6 +20,7 @@ from .backends import CadBackend
 from .compile import publish_file
 from .llm import LLM
 from .stages.build import floor_note, generate, run_with_repair
+from .stages.carve import apply_cuts, propose_cuts
 from .stages.understand import task_content
 from .stages.verify import critique
 from .types import Candidate, Task
@@ -31,8 +32,9 @@ def score_of(check: dict) -> float:
 
 
 class Agent:
-    def __init__(self, llm: LLM, backend: CadBackend, n_candidates: int = 2, repairs: int = 2, rounds: int = 0):
-        self.llm, self.backend = llm, backend
+    def __init__(self, llm: LLM, backend: CadBackend, n_candidates: int = 2, repairs: int = 2, rounds: int = 0,
+                 n_carve: int = 0):
+        self.llm, self.backend, self.n_carve = llm, backend, n_carve
         self.n_candidates, self.repairs, self.rounds = n_candidates, repairs, rounds
 
     def fallback(self, task: Task, out_dir: Path) -> Path | None:
@@ -64,7 +66,7 @@ class Agent:
             with lock:
                 if score_of(cand.check) > best["score"] + 1e-9 or best["step"] is None:
                     best.update(score=score_of(cand.check), step=str(cand.result.step_path),
-                                chosen=f"model candidate {cand.idx}", check=cand.check, code=cand.code)
+                                chosen=f"model {'cuts' if cand.idx >= 100 else 'body'} {cand.idx % 100}", check=cand.check, code=cand.code)
                     if publish:
                         publish_file(cand.result.step_path, publish)
 
@@ -84,11 +86,32 @@ class Agent:
                 cand.log.append(f"failed: {type(exc).__name__}: {exc}")
             return cand
 
+        def carve(i: int) -> Candidate:
+            """The model names empty regions; code cuts and checks each (forge/stages/carve.py)."""
+            cand = Candidate(i, "", out_dir / f"carve{i}")
+            try:
+                cuts = propose_cuts(self.llm, task, floor, cand.dir,
+                                    timeout=None if deadline is None else deadline - time.monotonic())
+                cand.code = json.dumps(cuts, indent=1)
+                if cuts:
+                    cand.result = apply_cuts(floor["step"], cuts, task, cand.dir)
+                    cand.check = cand.result.measure.get("check", {}) if cand.result.ok else {}
+                    cand.log += cand.result.measure.get("carve_log", []) if cand.result.ok else [cand.result.error[-200:]]
+                    offer(cand)
+                else:
+                    cand.log.append("no cuts in the reply")
+            except Exception as exc:
+                cand.log.append(f"failed: {type(exc).__name__}: {exc}")
+            return cand
+
         try:
             blocks = task_content(task)
             note = floor_note(floor, task.facts)
-            with ThreadPoolExecutor(max(self.n_candidates, 1)) as pool:
-                cands = list(pool.map(work, range(self.n_candidates)))
+            n_carve = self.n_carve if floor and floor["check"].get("volume_ratio", 1.0) > 1.04 and task.dir else 0
+            with ThreadPoolExecutor(max(self.n_candidates + n_carve, 1)) as pool:
+                jobs = [pool.submit(work, i) for i in range(self.n_candidates)]
+                jobs += [pool.submit(carve, 100 + i) for i in range(n_carve)]
+                cands = [j.result() for j in jobs]
         except Exception as exc:  # a dead endpoint must not cost us what we already have
             error = f"{type(exc).__name__}: {exc}"
 
