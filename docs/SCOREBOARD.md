@@ -60,6 +60,12 @@ Per part, as the leaderboard reported them. Bold marks the best value seen for t
 | `02-two-pass-qwen-nothink` (floor: 01) | 0.854 | 0.949 | 0.944 | 0.997 | 0.913 | 0.849 | 0.610 | 0.700 | 0.936 | 0.784 |
 | `09-helper-think-fit` (floor: 06, helper-API bodies) | 0.863 | 0.993 | 0.921 | 0.997 | 0.914 | **0.857** | 0.644 | 0.680 | 0.929 | 0.831 |
 
+Later submissions are recorded per part in `bench/approaches/<name>/scores.json` (10: 0.862,
+11: 0.863, 12: 0.871). A teammate's trial on 12 Nov, a model run with a CadQuery cheat
+sheet in the prompt (`13-cqref-cheatsheet-trial`, from an unmerged branch), did not score
+well; its value was not recorded and its files were removed from the tree (they are in
+git history at `fc54566`). Number 13 stays unused.
+
 Best value per part, taken across submissions, averages 0.873. That is a ceiling for what
 we have built so far, not a run we can reproduce.
 
