@@ -1,0 +1,100 @@
+{
+ "what": "Pass 1 only, no model call: as 04 plus flat faces cut down to the depth read from the isometric views (open cavities, recessed levels). Files made inside the Docker image by the final code, as non-root: 68 s. Repeatable exactly. Same as 04 on eight practice parts; its value is on hollow parts (our enclosure: 0.68 -> 0.99 against the answer).",
+ "n_cases": 9,
+ "leaderboard": null,
+ "mean_estimate": 0.7937,
+ "holes_right": 9,
+ "cases": {
+  "test_case_1": {
+   "valid": true,
+   "estimate": 0.9144,
+   "self_score": 0.9994,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.999,
+   "area_ratio": 1.001,
+   "silhouette_iou": 0.9938
+  },
+  "test_case_2": {
+   "valid": true,
+   "estimate": 0.8636,
+   "self_score": 0.9743,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.086,
+   "area_ratio": 0.993,
+   "silhouette_iou": 0.9886
+  },
+  "test_case_3": {
+   "valid": true,
+   "estimate": 0.9153,
+   "self_score": 0.998,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.996,
+   "area_ratio": 0.997,
+   "silhouette_iou": 0.9981
+  },
+  "test_case_4": {
+   "valid": true,
+   "estimate": 0.8255,
+   "self_score": 0.9201,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.169,
+   "area_ratio": 1.139,
+   "silhouette_iou": 0.9925
+  },
+  "test_case_5": {
+   "valid": true,
+   "estimate": 0.8462,
+   "self_score": 0.9467,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.126,
+   "area_ratio": 0.934,
+   "silhouette_iou": 0.9936
+  },
+  "test_case_6": {
+   "valid": true,
+   "estimate": 0.4895,
+   "self_score": 0.6137,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 3.234,
+   "area_ratio": 0.403,
+   "silhouette_iou": 0.9935
+  },
+  "test_case_7": {
+   "valid": true,
+   "estimate": 0.618,
+   "self_score": 0.8337,
+   "dimensions": 0.995,
+   "holes": 1.0,
+   "volume_ratio": 1.886,
+   "area_ratio": 0.919,
+   "silhouette_iou": 0.9783
+  },
+  "test_case_8": {
+   "valid": true,
+   "estimate": 0.8702,
+   "self_score": 0.9623,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.073,
+   "area_ratio": 0.942,
+   "silhouette_iou": 0.9881
+  },
+  "test_case_9": {
+   "valid": true,
+   "estimate": 0.8008,
+   "self_score": 0.8605,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.231,
+   "area_ratio": 0.722,
+   "silhouette_iou": 0.9961
+  }
+ },
+ "settings": "FORGE_MODEL_PASS=off FORGE_WORKERS=9 FORGE_BUDGET_S=3000"
+}

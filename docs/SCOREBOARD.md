@@ -61,6 +61,7 @@ are the estimate per practice part.
 | `03-two-pass-qwen-think-cuts` | 0.807 | not submitted | 0.90 | 0.91 | 0.92 | 0.88 | 0.81 | 0.62 | 0.61 | 0.89 | 0.73 | 9 of 9 |
 | `04-no-model-faces` | 0.793 | not submitted | 0.91 | 0.86 | 0.92 | 0.83 | 0.85 | 0.49 | 0.61 | 0.87 | 0.80 | 9 of 9 |
 | `05-faces-qwen-think-cuts` | 0.814 | not submitted | 0.91 | 0.88 | 0.92 | 0.88 | 0.85 | 0.56 | 0.65 | 0.87 | 0.80 | 9 of 9 |
+| `06-no-model-depth` | 0.794 | not submitted | 0.91 | 0.86 | 0.92 | 0.83 | 0.85 | 0.49 | 0.62 | 0.87 | 0.80 | 9 of 9 |
 
 - `00-boxes`: Bounding boxes (leaderboard 0.320 on 11 Nov)
 - `00-qwen-picked`: Hand-picked model candidates of 11 Nov (leaderboard 0.658)
@@ -69,6 +70,7 @@ are the estimate per practice part.
 - `03-two-pass-qwen-think-cuts`: Pass 1 + model pass with thinking on (medium, 16k tokens), 2 bodies + 1 cut list per part. Model won on 1,2,4,5,6,8,9. 1691 s wall clock.
 - `04-no-model-faces`: Pass 1 only, no model call: as 01 plus the space in front of every face a bore starts from removed (forge/layers.py). Files made inside the Docker image by the final code, as non-root: 52 s. Repeatable exactly.
 - `05-faces-qwen-think-cuts`: As 04 plus the model pass with thinking on (medium, 16k tokens), 2 bodies + 1 cut list per part. Model won on 2,4,5,6,7,8 (cut lists on 5,6,7,8). 1275 s wall clock.
+- `06-no-model-depth`: Pass 1 only, no model call: as 04 plus flat faces cut down to the depth read from the isometric views (open cavities, recessed levels). Files made inside the Docker image by the final code, as non-root: 68 s. Repeatable exactly. Same as 04 on eight practice parts; its value is on hollow parts (our enclosure: 0.68 -> 0.99 against the answer).
 
 How far to trust the estimate:
 
@@ -83,7 +85,8 @@ How far to trust the estimate:
   one run, 0.56 in the next).
 
 Wall-clock on Robin's laptop (15 cores): pass 1 alone 6 min (52 s inside the Linux
-container); with the model pass, thinking off 10.5 min, thinking on 21–28 min.
+container); with the model pass, thinking off 10.5 min, thinking on 21–28 min. With the depth
+sweep pass 1 takes 7 min on the laptop and 68 s in the container.
 
 ### True local score (our 12 reference parts, which have answers)
 
@@ -92,7 +95,7 @@ container); with the model pass, thinking off 10.5 min, thinking on 21–28 min.
 | bounding boxes | 0.499 | `scripts/bench_nomodel.py` |
 | hull from silhouettes, no model | 0.921 | ten parts at 0.94–1.00; enclosure 0.68, elbow 0.53 (hollow) |
 | hull from organiser-style renders | 0.920 | `scripts/bench_layers.py` |
-| the same, plus the depth sweep | 0.924 | flange 0.961 → 0.996, wheel 0.981 → 0.997; hollow parts unchanged |
+| the same, plus the depth sweep with the plain-sight test | **0.949** | enclosure 0.682 → 0.991, flange 0.961 → 0.996, wheel 0.981 → 0.997; no part lower; elbow (a bent tube) still 0.53 |
 
 These parts are simpler than the practice set and their facts carry no bore list, so
 this measures the silhouette bodies only.

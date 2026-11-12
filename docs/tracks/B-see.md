@@ -98,3 +98,4 @@ Append one line per experiment: date, idea, number before → after, kept or dro
 - 12 Nov: faces that bores start from, free space on the line of sight removed (`forge/layers.py: carve_mouth_faces`): practice estimate 0.773 → 0.794. Kept.
 - 12 Nov: depth of flat faces by plane sweep into the isometric view (`face_depths`, `carve_layers`): finds part 5's front face at 22.24 mm (exact), but no gain on the practice parts and accidental matches on small regions. Not wired in; needs the renderer of task B1 to test against answers.
 - 12 Nov: today's tasks are B1–B4 in `docs/PLAN.md`.
+- 12 Nov: depth sweep with a plain-sight test (a point with no hull between it and the isometric camera must show the face's shade): true local score on our reference parts 0.920 → 0.949, enclosure 0.682 → 0.991, no part lower; practice estimate unchanged (0.793 → 0.794). Kept, wired into pass 1 as `hull-depth`.

@@ -96,5 +96,5 @@
    "silhouette_iou": 0.9961
   }
  },
- "settings": "FORGE_MODEL_PASS=off FORGE_WORKERS=9 FORGE_BUDGET_S=3000"
+ "settings": "FORGE_MODEL_PASS=off FORGE_DEPTH=off FORGE_WORKERS=9 FORGE_BUDGET_S=3000"
 }

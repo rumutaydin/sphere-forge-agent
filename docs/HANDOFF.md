@@ -31,8 +31,9 @@ sloped pockets (parts 6 and 7).
 | Two passes, best file always on disk, no plan call | `forge/run.py`, `forge/pipeline.py` | 6 min without the model, 28 min with it |
 | Model writes the body only; code trims it with the hull and cuts the bores | `forge/stages/build.py` | helps on parts 4 and 6 with thinking on |
 | Model lists empty regions; code cuts each and checks it | `forge/stages/carve.py` | most proposals are rejected by the checks; small gains |
-| Depth of flat faces by sliding them into the isometric view | `forge/layers.py: face_depths`, `carve_layers` | experimental, not wired in (Track B task B2) |
-| Each approach's nine files with local numbers | `bench/approaches/`, `scripts/save_approach.py`, `scripts/submit_approach.sh` | six filed |
+| Depth of flat faces by sliding them into the isometric view, with a plain-sight test | `forge/layers.py: face_depths`, `carve_layers` | wired into pass 1; our hollow enclosure 0.68 → 0.99 against its answer; neutral on the practice parts |
+| Our reference parts drawn like the organisers' views; depth ideas scored against answers | `forge/render.py: render_organiser_style`, `scripts/bench_layers.py` | reference mean 0.920 → 0.949 |
+| Each approach's nine files with local numbers | `bench/approaches/`, `scripts/save_approach.py`, `scripts/submit_approach.sh` | seven filed |
 
 ## What we measured tonight
 
@@ -52,7 +53,8 @@ sloped pockets (parts 6 and 7).
    used all 16,000 tokens on thinking and returned nothing. The model won on 7 parts,
    mostly by small margins; part 6 went from 0.49 to 0.62. Estimate 0.807.
 6. **True local score** (our 12 reference parts with answers, silhouettes only): hull
-   0.921, boxes 0.499. The two hollow parts are the failures: enclosure 0.68, elbow 0.53.
+   0.921, boxes 0.499. The two hollow parts were the failures: enclosure 0.68, elbow 0.53.
+   With the depth sweep the enclosure reaches 0.99 and the mean 0.949.
 
 ## Rules that were corrected today
 

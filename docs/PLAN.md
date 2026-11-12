@@ -73,7 +73,7 @@ it reproduces the two values we know to within 0.01). None of 01–05 has been s
 | Order | Approach | Estimate | What the leaderboard value will tell us |
 |---|---|---|---|
 | 1 | `01-no-model` | 0.773 | what hull + bores alone are worth; calibrates the estimate on hulls |
-| 2 | `04-no-model-faces` | 0.793 | whether the face carving is a real gain (parts 1, 5, 9) |
+| 2 | `06-no-model-depth` | 0.794 | whether the face carving is a real gain (parts 1, 5, 9); this is the no-model configuration we would ship (`04` is the same without the depth sweep and differs only on part 7) |
 | 3 | `03-two-pass-qwen-think-cuts` | 0.807 | whether the model's bodies and cut lists help or hurt on 2, 4, 6, 8 |
 | 4 | `05-faces-qwen-think-cuts` | 0.814 | the best of both; our candidate for the final configuration |
 
@@ -86,7 +86,7 @@ the boxes, so that would spend a submission on 0.32.
 git checkout a/two-pass && scripts/submit_approach.sh 01-no-model
 git checkout main && git merge --ff-only a/two-pass && git push        # submission 1
 # 20 minutes later, the next one on top:
-git checkout a/two-pass && scripts/submit_approach.sh 04-no-model-faces
+git checkout a/two-pass && scripts/submit_approach.sh 06-no-model-depth
 git checkout main && git merge --ff-only a/two-pass && git push        # submission 2
 ```
 
@@ -95,8 +95,8 @@ image builds, runs as non-root with read-only inputs, 33 tests pass). **Twenty m
 submissions.** After each one, write the value into
 `bench/approaches/<name>/scores.json` (`"leaderboard"`) and, per part if the board shows
 it, into the scoreboard. Do 1 and 2 first: they need no GPU and are fully repeatable.
-`04` was regenerated inside the Docker image by the final code (non-root, 52 s), so a
-re-run by the organisers gives the same files. `01`–`03` and `05` were made by the
+`04` and `06` were generated inside the Docker image (non-root, about a minute), `06` by
+the final code, so a re-run by the organisers gives the same files. `01`–`03` and `05` were made by the
 laptop runs of the night; `01`–`03` by earlier commits of the same branch.
 
 ---
@@ -132,7 +132,7 @@ volume ratio, silhouette IoU. `bench_nomodel.py` is the only place we have real 
 **A1. Run the image as the organisers do (first thing).** `docker build --platform
 linux/amd64`, then run with `--user 1000:1000`, a read-only input folder and no model
 (`-e FORGE_MODEL_PASS=off`). Pass: nine `.stp` files, each passes `forge check` with
-holes 1.00, and the files match `bench/approaches/04-no-model-faces` (same estimate to
+holes 1.00, and the files match `bench/approaches/06-no-model-depth` (same estimate to
 0.01). Report wall-clock and the CPU count you ran on. Pass 1 starts one process per
 part; on a small machine it may need `FORGE_WORKERS=4`.
 **A2. Time pass 1 on few cores.** `docker run --cpus 4` and `--cpus 8`. If a part passes
@@ -162,24 +162,24 @@ uv run python scripts/bench_layers.py --tag b-<idea>      # true local score, hu
 
 Tonight: hull 0.920 → carved 0.924. The depth sweep is right where it fires (flange
 0.961 → 0.996, wheel 0.981 → 0.997) and silent on the two hollow parts.
-**B2. The enclosure problem (the most valuable open task).** `06_enclosure` scores
-0.682 and `08_elbow` 0.530 with no model, because a hull fills a hollow; a cover or
-housing in the hidden set would score like that. `forge/layers.py: face_depths` slides
-each flat face of an axis view along the view direction and scores each depth by how
-completely it covers whole shaded patches of the isometric view. What we learned on the
-enclosure floor (top view, true depth 37 mm):
-- an open cavity is ambiguous: the floor outline slid up to the rim also lands on drawn
-  edges (the rim's inner edge), so edge agreement alone picks depth 0;
-- the fix that is half built: a point with nothing between it and the isometric camera
-  is in plain sight, so a depth is impossible if such points do not show the face's
-  shade. The column in front of the face is empty by definition (we see the face through
-  it), so only the hull outside that column can hide it. This is in the code
-  (`hull_mesh=`), it rejects depth 0 correctly, but it also rejects the true depth; the
-  shade it expects (`main`) or the visibility march is still wrong. Start there: print,
-  for the floor at 37 mm, how many samples are "in plain sight" and what shade they land on.
-Target: enclosure above 0.95 with no model, and no reference part lower than before.
-Then wire `carve_layers` into `forge/compile.py: body_sources` as one more source and
-measure the nine practice parts.
+**B2. Hollow parts: half solved tonight, the rest is yours.** A hull fills a hollow, so
+a cover or housing in the hidden set would score like our `06_enclosure` did: 0.682.
+`forge/layers.py: face_depths` now finds the cavity floor at 36.99 mm (true: 37.0) and
+`carve_layers` cuts it: **0.682 → 0.991 against the answer, no model**, reference mean
+0.920 → 0.949, no part lower. It is wired into pass 1 as body source `hull-depth`
+(`FORGE_DEPTH=off` turns it off). How it works, so you can extend it:
+- each flat face of an axis view is slid along the view direction; a depth scores by how
+  completely the face covers whole shaded patches of the isometric view;
+- an open cavity is ambiguous by edges alone (the floor outline slid up to the rim also
+  lands on drawn edges), so impossible depths are ruled out first: a point with nothing
+  between it and the isometric camera is in plain sight and must show the face's shade.
+  The column in front of the face is empty by definition (we see the face through it),
+  so only the hull outside that column can hide it.
+What is open, in order of value: (a) `08_elbow` (a bent tube, 0.53): its bore is not
+flat-floored, so nothing fires; (b) on the practice parts the sweep is neutral (part 7
+only, 0.614 → 0.618): find out which faces of parts 5, 7 and 9 it should have found and
+why it did not (print `face_depths` per view); (c) faces seen only in the *other*
+isometric view or in none.
 **B3. Tilted and curved faces.** Parts 6 (fins) and 7 (ribs, pocket in the flange) are
 too full by ×3.2 and ×1.9. The fins of part 6 are flat faces seen in the isometric
 views; the same idea as B2 with a plane that is not axis-aligned.
