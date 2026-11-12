@@ -77,8 +77,21 @@ it reproduces the two values we know to within 0.01). None of 01–05 has been s
 | 3 | `03-two-pass-qwen-think-cuts` | 0.807 | whether the model's bodies and cut lists help or hurt on 2, 4, 6, 8 |
 | 4 | `05-faces-qwen-think-cuts` | 0.814 | the best of both; our candidate for the final configuration |
 
-Submit with `scripts/submit_approach.sh <name>` (stages the files into
-`artifacts/outputs`, sets the Dockerfile defaults, commits). **Twenty minutes between
+Submit like this. `scripts/submit_approach.sh` stages the files into `artifacts/outputs`,
+sets the Dockerfile's `FORGE_*` line and makes one commit; the push to `main` is the
+submission. **Do not merge `a/two-pass` as it is**: its `artifacts/outputs` still holds
+the boxes, so that would spend a submission on 0.32.
+
+```bash
+git checkout a/two-pass && scripts/submit_approach.sh 01-no-model
+git checkout main && git merge --ff-only a/two-pass && git push        # submission 1
+# 20 minutes later, the next one on top:
+git checkout a/two-pass && scripts/submit_approach.sh 04-no-model-faces
+git checkout main && git merge --ff-only a/two-pass && git push        # submission 2
+```
+
+CI builds the image and runs the tests in it before it submits (tested locally: the
+image builds, runs as non-root with read-only inputs, 33 tests pass). **Twenty minutes between
 submissions.** After each one, write the value into
 `bench/approaches/<name>/scores.json` (`"leaderboard"`) and, per part if the board shows
 it, into the scoreboard. Do 1 and 2 first: they need no GPU and are fully repeatable.

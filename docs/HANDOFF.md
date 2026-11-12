@@ -88,6 +88,11 @@ on `main`.
 
 ## The model server
 
+**As of 12 Nov, 03:30 the instance is still running** (it was used until 03:27; the
+coding agent was not allowed to stop it). Stop it in the Brev console if nobody is
+measuring: it costs $4.84 per hour. A reconnecting tunnel may still be running on
+Robin's laptop (`pkill -f "ssh -N -o ServerAliveInterval"` ends it).
+
 | | |
 |---|---|
 | Instance | Brev, name `clinical-ivory-barnacle`, one RTX PRO 6000 Blackwell (96 GB), $4.84/h, about 50 h of credit in total |
