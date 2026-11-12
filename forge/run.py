@@ -9,7 +9,8 @@ Rules this file enforces:
   - the whole run stays inside the wall-clock budget (1 hour limit; default 50 min)
 
 Settings (environment): FORGE_BUDGET_S (3000), FORGE_PASS1_S (600, per part), FORGE_WORKERS (9),
-FORGE_CANDIDATES (2), FORGE_CARVE (0), FORGE_ROUNDS (0), FORGE_FACES (on), FORGE_MODEL_PASS (on), FORGE_SKIP_ABOVE (0.90).
+FORGE_CANDIDATES (2), FORGE_CARVE (0), FORGE_ROUNDS (0), FORGE_FACES (on), FORGE_DEPTH (on),
+FORGE_MODEL_MARGIN (0.02), FORGE_MODEL_PASS (on), FORGE_SKIP_ABOVE (0.90).
 """
 from __future__ import annotations
 
@@ -46,6 +47,7 @@ def make_agent(llm=None) -> Agent:
         n_candidates=int(os.environ.get("FORGE_CANDIDATES", "2")),
         rounds=int(os.environ.get("FORGE_ROUNDS", "0")),
         n_carve=int(os.environ.get("FORGE_CARVE", "0")),
+        margin=float(os.environ.get("FORGE_MODEL_MARGIN", "0.02")),
     )
 
 

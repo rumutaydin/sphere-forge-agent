@@ -15,6 +15,14 @@ set is about 0.8, against 0.658 submitted yesterday and 0.320 for boxes. The est
 give the real values. What remains hard is material hidden from every outline: hollow interiors, fins,
 sloped pockets (parts 6 and 7).
 
+## State at midday, 12 Nov
+
+Six submissions today; best 0.870 (`05`). The clean configuration (no cut lists,
+thinking off, helper-API bodies, guards on dimensions and margin) is approach
+`10-clean-bodies-nothink`, made by one run inside the Docker image in about 160 s; it is
+what `main` should hold. The next tasks, ordered and self-contained, are T1–T10 in
+[PLAN.md](PLAN.md). The Brev instance was running at 12:00 UTC.
+
 ## Leaderboard on 12 Nov (morning)
 
 Four submissions: no model 0.847, no model with face and depth carving 0.856, with the

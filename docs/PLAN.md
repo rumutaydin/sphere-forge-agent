@@ -1,248 +1,168 @@
-# Plan v3, Thu 12 Nov (after the night session)
+# Plan v4, Thu 12 Nov, midday
 
-Replaces the plan of 11 Nov and the "Plan v2" draft. State and measurements:
-[HANDOFF.md](HANDOFF.md). Numbers: [SCOREBOARD.md](SCOREBOARD.md). Code freeze:
-**Fri 13 Nov, 08:00**. Where this disagrees with the backlog order in `docs/tracks/*.md`,
-this file wins. We are four people: Robin plus one person each on tracks A, B and C.
+Replaces plan v3. State: [HANDOFF.md](HANDOFF.md). Numbers and the twelve lessons from
+the leaderboard: [SCOREBOARD.md](SCOREBOARD.md). Code freeze: **Fri 13 Nov, 08:00**.
+A new session can start from this page alone.
 
-## What changed overnight
+## Where we are
 
-Plan v2 said: stop asking the model for the whole part; let code build everything it can
-from `facts.json` and the views, and let the model write only what code cannot. That is
-now built and measured.
-
-| Yesterday | Now (branch `a/two-pass`) |
+| | Leaderboard |
 |---|---|
-| model plans, then writes the full program (3–5 min per call, often empty) | no plan call |
-| 7 of 9 parts built by hand-picking; 2 complex parts were boxes | **9 of 9 built with no model call**, in about 6 minutes |
-| hole count right on the parts that built | **dimensions and hole count exact on all nine**, from code |
-| good candidates lost to a timeout | the output file is always the best part so far; nothing waits for the end |
-| self-score blind to shape | silhouette check against all eight views, exact framing |
-| run over the hour (69 min) | 6 min without the model, 28 min with it |
+| boxes (11 Nov) | 0.320 |
+| hand-picked model parts (11 Nov) | 0.658 |
+| no model at all (`01`) | 0.847 |
+| no model, with face and depth carving (`06`) | 0.856 |
+| the same plus the model pass (`05`, our best) | **0.870** |
+| the same with helper-API bodies and cut lists (`09`) | 0.863 |
+| best value per part across all submissions | 0.873 (a ceiling, not a run) |
 
-```mermaid
-flowchart LR
-    IN(["brief + facts.json + 8 views"]) --> BOX["box<br/>written at once"]
-    IN --> P1["PASS 1, no model (forge/compile.py)"]
-    subgraph P1S["pass 1: seconds to minutes per part"]
-        H["visual hull<br/>5 silhouette prisms"]
-        R["revolve<br/>turned parts"]
-        F["faces bores start from<br/>(forge/layers.py)"]
-        B["bores from facts<br/>until hole count matches"]
-        H --> F --> B
-        R --> B
-    end
-    P1 --> P1S
-    P1S --> K{"estimate<br/>(facts + silhouettes)"}
-    K -- "better than what is on disk" --> OUT(["test_case_n.stp"])
-    K --> P2["PASS 2, model (forge/pipeline.py)"]
-    subgraph P2S["pass 2: worst parts first"]
-        M1["model writes a body<br/>trimmed by the hull, bores by code"]
-        M2["model lists empty regions<br/>code cuts and checks each"]
-    end
-    P2 --> P2S
-    P2S --> K
-    BOX --> OUT
+Dimensions and holes are exact on all nine parts. Everything left is **shape inside
+the outline**, and almost all of it is in three parts: 6 (0.61–0.66), 7 (0.68–0.71),
+9 (0.83–0.84). Parts 5 and 4 are at 0.84–0.91; parts 1, 2, 3, 8 at 0.92–0.99.
+
+## The clean configuration (on `main` after submission `10`)
+
+```
+FORGE_THINKING=off FORGE_CANDIDATES=3 FORGE_CARVE=0 FORGE_MODEL_MARGIN=0.02 FORGE_WORKERS=9 FORGE_BUDGET_S=3000
 ```
 
-Three ideas carry this:
+Pass 1 (no model): hull or revolve, face carving, depth sweep, bores to the hole count.
+Pass 2: three bodies per part written with the helper solids
+(`forge/library/solids.py`), thinking off, envelope repair, hole search on model
+bodies. A model body replaces the no-model part only if its estimate is higher by 0.02
+and its outer dimensions are not worse. No cut lists. One real run in Docker: about 160 s.
+Approach `10-clean-bodies-nothink` is that run.
 
-1. **A silhouette body contains the true part.** Each view's outline, extruded through
-   the box along its view direction, is a prism the part must lie inside. The
-   intersection of five prisms (three axis views, two isometric) is a B-rep with exact
-   outer dimensions. Framing is exact because the organisers fit the projected
-   *bounding box* into 985 of 1024 pixels and we know the bounding box.
-2. **The facts give every bore exactly**, and the through-hole count we must hit. Bores
-   are cut pattern by pattern, each drilled as far as needed (as listed, opened to the
-   nearer side, or fully through) until the count equals `through_holes_genus`.
-3. **What we can see is empty in front.** If a view shows the rim of a bore exactly where
-   the facts put it, the flat face around that rim is at a known plane, and the space on
-   the line of sight in front of it is empty. That removes pockets and recessed faces
-   that no outline shows (part 9: volume ×1.54 → ×1.23).
+Why each choice, from the leaderboard: cut lists sum to zero over three runs with ±0.05
+swings; thinking is not needed for the one reliable model gain (part 4, +0.063 either
+way); small estimated gains were noise.
 
-What is left over is material **hidden from every outline and not next to a bore**:
-hollow interiors, fins, pockets with sloped floors. Parts 6 (×3.2 too full) and 7 (×1.9)
-are the two that carry most of the remaining points.
+## What is wrong with parts 6, 7 and 9 (looked at the views and at our solids)
 
-## The approaches, ready to submit one at a time
-
-Each folder in `bench/approaches/` holds nine STEP files and `scores.json`. "Estimate"
-is our local stand-in for the leaderboard (see the scoreboard for how far to trust it;
-it reproduces the two values we know to within 0.01). None of 01–05 has been submitted.
-
-| Order | Approach | Estimate | What the leaderboard value will tell us |
+| Part | What the real part is | What we output | Why the code misses it |
 |---|---|---|---|
-| 1 | `01-no-model` | 0.773 | what hull + bores alone are worth; calibrates the estimate on hulls |
-| 2 | `06-no-model-depth` | 0.794 | whether the face carving is a real gain (parts 1, 5, 9); this is the no-model configuration we would ship (`04` is the same without the depth sweep and differs only on part 7) |
-| 3 | `03-two-pass-qwen-think-cuts` | 0.807 | whether the model's bodies and cut lists help or hurt on 2, 4, 6, 8 |
-| 4 | `05-faces-qwen-think-cuts` | 0.814 | the best of both; our candidate for the final configuration |
+| 6 | a cone whose side is cut by 16 deep V grooves running **up the cone**; seen from the top it is a 16-point star | a smooth cone made of stacked rings, volume ×3.2 | the outline is a disc from the top and a cone from the side, so the revolve looks perfect to every silhouette; the grooves exist only as strokes and shades inside the outline. The rings are the pixel steps of the revolved outline, not a feature |
+| 7 | a top flange that is an **open tray** (deep pocket, thin walls), a neck, and a thin tilted plate with a boss; empty space between flange and plate | flange and plate fused into one block, tray filled, volume ×1.9 | three axis outlines cannot separate a thin plate from the block behind it; the tray floor is partly curved, so the depth sweep (flat faces only) finds little |
+| 9 | two cylinder banks, each with a recessed head-plate tray around its three bores | one bank has its tray, the other does not, volume ×1.23 | face carving needs a view that sees the bank face head-on; one bank is edge-on to both isometric cameras |
 
-Submit like this. `scripts/submit_approach.sh` stages the files into `artifacts/outputs`,
-sets the Dockerfile's `FORGE_*` line and makes one commit; the push to `main` is the
-submission. **Do not merge `a/two-pass` as it is**: its `artifacts/outputs` still holds
-the boxes, so that would spend a submission on 0.32.
+The vertical stripes on our solids are a different thing: outlines traced from pixels
+become many short flat faces. The scorer barely minds (parts 1 and 3 score 0.99), but
+the files are large and ugly (task T9).
 
-```bash
-git checkout a/two-pass && scripts/submit_approach.sh 01-no-model
-git checkout main && git merge --ff-only a/two-pass && git push        # submission 1
-# 20 minutes later, the next one on top:
-git checkout a/two-pass && scripts/submit_approach.sh 06-no-model-depth
-git checkout main && git merge --ff-only a/two-pass && git push        # submission 2
-```
+## Tasks, in the order I would do them
 
-CI builds the image and runs the tests in it before it submits (tested locally: the
-image builds, runs as non-root with read-only inputs, 33 tests pass). **Twenty minutes between
-submissions.** After each one, write the value into
-`bench/approaches/<name>/scores.json` (`"leaderboard"`) and, per part if the board shows
-it, into the scoreboard. Do 1 and 2 first: they need no GPU and are fully repeatable.
-`04` and `06` were generated inside the Docker image (non-root, about a minute), `06` by
-the final code, so a re-run by the organisers gives the same files. `01`–`03` and `05` were made by the
-laptop runs of the night; `01`–`03` by earlier commits of the same branch.
+Each is one to three hours, offline unless marked GPU, and ends in one number.
+"Measure" commands: `uv run pytest -q`, `uv run python scripts/compile_all.py --tag <t>`
+(nine practice parts, no model, 7 min on the laptop), `uv run python
+scripts/bench_layers.py --tag <t>` (12 reference parts with answers).
 
----
+### T1. An edge score: see inside the outline (highest value, unblocks the rest)
 
-## Who does what today
+Our estimate compares outlines and volume. It cannot tell a groove in the right place
+from one in the wrong place, which is why it promised +0.36 for `09` and the leaderboard
+gave +0.06. The views do show the inside: every face border is a black stroke.
+Build `forge/vision.py: edge_score(step, task)`: render our part with
+`forge/render.py: render_organiser_style` in the eight views, take the stroke maps of
+both, and score their agreement (share of target stroke pixels within 2–3 px of ours and
+the reverse, as an F-score). **Test before use:** `bench/approaches/*/` holds 7
+submissions × 9 parts with a leaderboard value each (`scores.json` → `cases` →
+`leaderboard`). For each part, does the edge score rank the 7 variants as the
+leaderboard does, better than `estimate` does? Report both rank correlations. If yes:
+put it into `forge/compile.py: estimate`, and into the checks of every cut and every
+model body. Number: rank correlation with the leaderboard within a part.
 
-| | Question | Number to move | First step |
-|---|---|---|---|
-| **Robin** | Which approach goes in the final image, and with which model settings? | leaderboard | submit 1–4 in order, read the per-part values |
-| **Track A: Ship** | Does the image do the same on the organisers' machine as on Robin's laptop? | wall-clock in Docker; a public endpoint that stays up | A1 below |
-| **Track B: See** | Can we read the depth of what the outline hides? | true local score on our hollow reference parts: 0.68 and 0.53 today | B1, then B2 |
-| **Track C: Compile** | How much of the overfill on parts 6 and 7 can code remove? | volume ratio of the no-model part: ×3.2 and ×1.9 today | C1 below |
+### T2. Part 6: radial patterns (Track C)
 
-Every task below is offline unless it says GPU, takes one to three hours, and ends in one
-number. Start by running the two commands under "How to measure", so you see the
-numbers you are about to move.
+Count the pattern from the top view: sample the stroke image on a circle around the
+axis and take the strongest period (16 here). Then cut one V wedge and repeat it with
+`polar` (`forge/library/solids.py`); the wedge's inner and outer radius come from where
+the strokes start and end in the top view, its depth from T1's edge score or from the
+facts' volume. Trigger on "the axis view is a disc and its strokes repeat n-fold", never
+on the part. Number: part 6 volume ratio ×3.2 → below ×1.3; leaderboard 0.61 → ?
 
-### How to measure (no GPU, about 6 minutes)
+### T3. Part 7: the tray and the space behind the plate (Track B)
 
-```bash
-uv sync && uv run pytest -q
-uv run python scripts/compile_all.py -o runs/compile-mine --tag <track>-<idea>   # all nine practice parts, no model
-uv run python scripts/bench_nomodel.py --tag <track>-<idea>-bench                # 12 parts WITH answers: true local score
-uv run python scripts/bench_layers.py --tag <track>-<idea>-layers                  # same 12 parts drawn like the organisers' views
-uv run python scripts/approaches_table.py                                         # what is filed so far
-```
+Print `forge.layers.face_depths` for part 7's top view and see why the tray floor is
+not taken (curved floor fails the flat-shade test; try accepting a region whose shade
+varies smoothly). Then the general case: a point is empty if **any** view sees
+something behind it. With T1's renderer we can render depth too; compare where our
+solid hides a stroke that the target view shows. Number: part 7 volume ratio ×1.9 → ?
 
-`compile_all.py` prints, per part and per body source: estimate, dimensions, holes,
-volume ratio, silhouette IoU. `bench_nomodel.py` is the only place we have real answers.
+### T4. Part 9: the other bank (Track C)
 
-### Track A: Ship
+The carved bank proves the tray; the other bank is its mirror image shifted 25.4 mm in
+X (the brief says so, and the bore lists of the two banks show it). Detect "two bore
+patterns that are mirror images of each other" in the facts and apply each face cut
+found on one to the other, checked like every cut. Number: part 9 volume ×1.23 → ?
 
-**A1. Run the image as the organisers do (first thing).** `docker build --platform
-linux/amd64`, then run with `--user 1000:1000`, a read-only input folder and no model
-(`-e FORGE_MODEL_PASS=off`). Pass: nine `.stp` files, each passes `forge check` with
-holes 1.00, and the files match `bench/approaches/06-no-model-depth` (same estimate to
-0.01). Report wall-clock and the CPU count you ran on. Pass 1 starts one process per
-part; on a small machine it may need `FORGE_WORKERS=4`.
-**A2. Time pass 1 on few cores.** `docker run --cpus 4` and `--cpus 8`. If a part passes
-`FORGE_PASS1_S` (600 s) it keeps what it had, so nothing is lost, but the hole search may
-be cut short. Find the slow step with the per-part seconds and tell Track C.
-**A3. Public endpoint and handover file** (old freeze checklist, unchanged): port 8000
-public, `team-g.env` with the public address, tested from a machine that is not on the
-tunnel. Ask the organisers the three open questions in the handoff.
-**A4. Repeatability.** Pass 1 is deterministic: run it twice, the files must be
-identical in volume and hole count. For the model pass set `FORGE_TEMPERATURE=0
-FORGE_SEED=1` and compare two runs (GPU, 30 min each).
-**A5. Leaderboard log.** After each of Robin's submissions, per-part values into the
-scoreboard. The estimate was fitted on 16 files; with four more submissions refit it
-(`scripts/calibrate_shape.py` shows how) and say which term carries the error.
+### T5. Model ablation (GPU; Robin's teammate is setting up a bigger model)
 
-### Track B: See
-
-**B1. Measure with the new renderer (done tonight, yours to own).** `forge/render.py:
-render_organiser_style` draws our 12 reference parts the way the organisers draw theirs
-(flat shade per face from a camera-fixed light, black strokes, same framing; an answer
-scores IoU 0.997 against its own render). `scripts/bench_layers.py` builds the hull from
-those views, carves it, and scores both against the answer. Run it first:
+The pipeline talks to any OpenAI-compatible endpoint that accepts images:
 
 ```bash
-uv run python scripts/bench_layers.py --tag b-<idea>      # true local score, hull -> carved, per part
+export OPENAI_BASE_URL=http://<host>:8000/v1 OPENAI_API_KEY=<key> OPENAI_MODEL=<model id>
+FORGE_THINKING=off FORGE_CANDIDATES=3 FORGE_CARVE=0 \
+  nohup uv run python -m forge eval --inputs artifacts/inputs --tag a-<model>-bodies \
+  -o runs/<model> > runs/<model>.log 2>&1 &
+uv run python scripts/save_approach.py 1x-<model> runs/<model>/outputs "what it is"
 ```
 
-Tonight: hull 0.920 → carved 0.924. The depth sweep is right where it fires (flange
-0.961 → 0.996, wheel 0.981 → 0.997) and silent on the two hollow parts.
-**B2. Hollow parts: half solved tonight, the rest is yours.** A hull fills a hollow, so
-a cover or housing in the hidden set would score like our `06_enclosure` did: 0.682.
-`forge/layers.py: face_depths` now finds the cavity floor at 36.99 mm (true: 37.0) and
-`carve_layers` cuts it: **0.682 → 0.991 against the answer, no model**, reference mean
-0.920 → 0.949, no part lower. It is wired into pass 1 as body source `hull-depth`
-(`FORGE_DEPTH=off` turns it off). How it works, so you can extend it:
-- each flat face of an axis view is slid along the view direction; a depth scores by how
-  completely the face covers whole shaded patches of the isometric view;
-- an open cavity is ambiguous by edges alone (the floor outline slid up to the rim also
-  lands on drawn edges), so impossible depths are ruled out first: a point with nothing
-  between it and the isometric camera is in plain sight and must show the face's shade.
-  The column in front of the face is empty by definition (we see the face through it),
-  so only the hull outside that column can hide it.
-What is open, in order of value: (a) `08_elbow` (a bent tube, 0.53): its bore is not
-flat-floored, so nothing fires; (b) on the practice parts the sweep is neutral (part 7
-only, 0.614 → 0.618): find out which faces of parts 5, 7 and 9 it should have found and
-why it did not (print `face_depths` per view); (c) faces seen only in the *other*
-isometric view or in none.
-**B3. Tilted and curved faces.** Parts 6 (fins) and 7 (ribs, pocket in the flange) are
-too full by ×3.2 and ×1.9. The fins of part 6 are flat faces seen in the isometric
-views; the same idea as B2 with a plane that is not axis-aligned.
-**B4. Does the estimate rank parts as the leaderboard does?** Once A5 has four more
-submissions, report rank correlation per ingredient and refit `forge/compile.py:
-estimate`.
+`FORGE_THINKING=off` sends Qwen's chat-template switch; for another model family set
+`FORGE_THINKING=on` and, if it thinks, `FORGE_MAX_TOKENS=16000 FORGE_LLM_TIMEOUT_S=700`.
+Compare with Qwen3.8-27B on the same settings: bodies that run at the first try (19 of
+21), bodies that beat the no-model part (3–4 of 7 parts), and above all the
+**leaderboard** values of parts 4, 5, 6, 7, 9, because the local estimate cannot rank
+model bodies. With the helper API the model no longer needs to know CadQuery, so this
+measures spatial ability. The current endpoint must stay up as the fallback until a new
+one has beaten it on a submission.
 
-### Track C: Compile
+### T6. A vision model as a classifier, not a modeller
 
-**C1. Part 6: radial patterns.** The part is a cone with V grooves; the hull and the
-revolve are both ×3.2 too full, the worst part we have (estimate 0.49, the model reaches
-0.62). The top view shows the groove pattern as strokes, the brief gives the symmetry.
-Try: detect an n-fold pattern in the top view (rotate the stroke image by 360/n and
-compare), cut one wedge found from the isometric view, repeat it around the axis. Keep it
-general: trigger on the pattern, never on the part number.
-**C2. Bore search leftovers.** Part 8 reaches the hole count only by skipping 12 small
-bores (`compile.json` → `note`), because cutting them adds loops. Find which crossings
-are real (the true part has 11 through-holes) and keep those bores. Number: bores
-skipped on part 8, 12 → 0 with holes still 1.00.
-**C3. Pass 1 speed.** 6 minutes on 15 cores; part 7 takes 335 s, most of it in
-`carve_mouth_faces` (one silhouette check per candidate face). Reject faces with nothing
-in front of them before the expensive check. Target: under 2 minutes per part.
-**C4. Smoother outlines.** Hull outlines are polygons from pixels (about 0.7 px
-tolerance). Fit lines and arcs so curved faces are cylinders again; the surface score is
-checked down to 0.5% of part size. Measure on `bench_nomodel.py` (surface term).
-**C5. Recipes from shafts and bosses.** `cylindrical_shafts_and_bosses` in the facts is
-unused. For shaft-like parts (part 4) exact cylinders could replace the pixel outline.
+The pipeline's model already sees the views; a second, smaller one adds nothing by
+itself. What does work is asking for **discrete answers that code can check**: "do the
+grooves run along the axis or around it", "how many fins", "is the top face a tray".
+Each answer selects a code recipe (T2, T3), and the recipe's result is checked against
+the views (T1). Cheap to try once T1 exists: one call per part, thinking off.
 
-### Robin: the model, where it still adds points
+### T7. A real benchmark from the Fusion 360 Gallery Assembly dataset
 
-1. Submit the four approaches and read the per-part values. The model pass is only worth
-   keeping if `03` beats `01` on the leaderboard by more than its estimate noise.
-2. The model's bodies are weak with thinking off (below the no-model part on 7 of 9) and
-   useful with thinking on (parts 4 and 6). Its cut lists are mostly rejected by the
-   checks. If the organisers allow a hosted model, this is where a stronger model pays.
-3. Final settings into the Dockerfile, full run in Docker, outputs committed with the
-   code that made them. Feature freeze 02:00 Friday as before.
+We think the nine practice parts come from it; that is not confirmed. Two uses, very
+different:
+- **Fine:** take 30–50 parts from it, render them with `render_organiser_style`, write
+  `facts.json` for each (`forge/facts.py: facts_from_measure`, plus a bore list), and
+  score our pipeline against the real STEP with `forge/score.py`. That gives a true
+  local score on realistic parts, which is the thing we lack most. Number: local score
+  on that set, per tier.
+- **Ask the organisers first:** looking the hidden parts up in the dataset and returning
+  the stored solid. That is retrieving the answers, not building them, and a re-run
+  review would show it. Do not build it without a clear yes.
 
----
+### T8. Another scripting language (build123d): not recommended now
 
-## Order today
+The model no longer writes CadQuery; it writes calls to nine helper functions, and
+errors fell from 80 to 2. A different kernel API behind the helpers changes nothing the
+model sees.
 
-| By | Milestone |
-|---|---|
-| 09:30 | everyone has run "How to measure"; Robin has submitted `01-no-model` |
-| 11:00 | `04` and `03` submitted; A1 done (image runs as non-root, same files) |
-| 14:00 | fourth submission; B1 renderer checked against answers; C1 or C2 has a number |
-| 18:00 sync | decide the final configuration from leaderboard values, not estimates |
-| evening | merges of B and C work that moved a number, each with a submission |
-| 02:00 | feature freeze, full run in Docker, final outputs committed |
-| 06:00–08:00 | handover file, endpoint check from outside, three slides |
+### T9. Smoother outlines (Track C)
 
-## Risks
+Fit lines and arcs to the traced outlines (`forge/vision.py: mask_polygons`) so round
+faces are cylinders again. Smaller files, cleaner solids, maybe a little surface score.
+Measure the surface term on `scripts/bench_nomodel.py`.
 
-- **`facts.json` on the hidden parts** is still unconfirmed. Without it pass 1 has no
-  bounding box and only the model path runs. Ask today.
-- **The estimate is not the leaderboard.** It was fitted on boxes and model-written
-  bodies; a hull matches every silhouette by construction, so on hulls it leans on the
-  volume ratio alone. The first two submissions settle how much to trust it.
-- **Model cut lists** raise the estimate whenever they remove volume without touching a
-  silhouette; that does not prove the cut is in the right place. Approach 03 against 01
-  on the leaderboard is the test.
-- **Hollow parts** (covers, housings) are the hull's worst case and the hidden set may
-  have one. B2 is the remedy; until then the model pass is the only thing that helps.
-- **Tuning to nine parts.** Every rule added tonight triggers on a pattern in the facts
-  or the views. Keep it that way.
+### T10. Freeze checklist (Track A, Thursday evening)
+
+- [ ] the final configuration is the Dockerfile's `FORGE_*` line, and `artifacts/outputs`
+      was produced by one run of that image
+- [ ] port 8000 public, `team-g.env` with the public address, tested from outside the tunnel
+- [ ] `docker run --cpus 4`: pass 1 still inside `FORGE_PASS1_S`
+- [ ] the organisers answered: is `facts.json` in the hidden set; how strictly is a re-run compared
+- [ ] Brev credit lasts through judging; instance not stopped after the address is handed over
+- [ ] three slides: approach (code first, model second), numbers (0.32 → 0.87), cost (a minute per run without the model)
+
+## Rules that came out of today
+
+- `main` receives submission commits only; work on `<track>/<idea>` branches off `main`.
+- Decide between configurations on leaderboard values, not on the estimate.
+- A cut into a silhouette body is kept only if it is checked (valid solid, hole count,
+  silhouettes, volume) **and** justified by something a view shows.
+- One approach number per folder in `bench/approaches/`; take the next free one.
