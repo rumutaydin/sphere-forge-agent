@@ -82,6 +82,9 @@ Submit with `scripts/submit_approach.sh <name>` (stages the files into
 submissions.** After each one, write the value into
 `bench/approaches/<name>/scores.json` (`"leaderboard"`) and, per part if the board shows
 it, into the scoreboard. Do 1 and 2 first: they need no GPU and are fully repeatable.
+`04` was regenerated inside the Docker image by the final code (non-root, 52 s), so a
+re-run by the organisers gives the same files. `01`–`03` and `05` were made by the
+laptop runs of the night; `01`–`03` by earlier commits of the same branch.
 
 ---
 

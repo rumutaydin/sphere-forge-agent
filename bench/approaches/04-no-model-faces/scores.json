@@ -1,8 +1,8 @@
 {
- "what": "Pass 1 only, no model call: as 01 plus the space in front of every face a bore starts from removed (forge/layers.py). 6 min wall clock.",
+ "what": "Pass 1 only, no model call: as 01 plus the space in front of every face a bore starts from removed (forge/layers.py). Files made inside the Docker image by the final code, as non-root: 52 s. Repeatable exactly.",
  "n_cases": 9,
  "leaderboard": null,
- "mean_estimate": 0.7937,
+ "mean_estimate": 0.7933,
  "holes_right": 9,
  "cases": {
   "test_case_1": {
@@ -13,7 +13,7 @@
    "holes": 1.0,
    "volume_ratio": 0.999,
    "area_ratio": 1.001,
-   "silhouette_iou": 0.9939
+   "silhouette_iou": 0.9938
   },
   "test_case_2": {
    "valid": true,
@@ -67,23 +67,23 @@
   },
   "test_case_7": {
    "valid": true,
-   "estimate": 0.6145,
-   "self_score": 0.831,
+   "estimate": 0.6144,
+   "self_score": 0.8308,
    "dimensions": 0.995,
    "holes": 1.0,
    "volume_ratio": 1.907,
-   "area_ratio": 0.916,
+   "area_ratio": 0.915,
    "silhouette_iou": 0.9783
   },
   "test_case_8": {
    "valid": true,
-   "estimate": 0.8731,
-   "self_score": 0.9636,
+   "estimate": 0.8702,
+   "self_score": 0.9623,
    "dimensions": 1.0,
    "holes": 1.0,
-   "volume_ratio": 1.068,
+   "volume_ratio": 1.073,
    "area_ratio": 0.942,
-   "silhouette_iou": 0.9886
+   "silhouette_iou": 0.9881
   },
   "test_case_9": {
    "valid": true,
@@ -93,7 +93,7 @@
    "holes": 1.0,
    "volume_ratio": 1.231,
    "area_ratio": 0.722,
-   "silhouette_iou": 0.996
+   "silhouette_iou": 0.9961
   }
  },
  "settings": "FORGE_MODEL_PASS=off FORGE_WORKERS=9 FORGE_BUDGET_S=3000"
