@@ -393,3 +393,170 @@ def carve_mouth_faces(body, task, log: list | None = None, t_end: float | None =
         if ok:
             shape, base_iou, n_cut = new, max(base_iou, iou), n_cut + 1
     return cq.Workplane("XY").newObject([shape])
+
+
+# --- patterns that repeat around an axis ------------------------------------------------------
+#
+# A turned part with fins or grooves around its axis has a perfect disc as its axis view and a
+# plain profile from the side, so no outline shows the grooves. The axis view does: its strokes
+# repeat n times around the centre, and between the fins it looks down onto a flat face.
+#   1. n = the largest count for which the stroke drawing maps onto itself when turned by 360/n
+#   2. the flat faces seen between the fins (depth from face_depths) are copied to all n positions
+#      and the space above them is removed: we look straight down onto them
+#   3. optionally the same openings, shrunk toward the axis as the profile narrows, are removed
+#      higher up (a groove that runs up a cone); kept only if the line drawing of the part then
+#      matches the strokes of the views better (vision.edge_score)
+
+AXIS_VIEW = {"Z": "view_4_top", "Y": "view_0_front", "X": "view_2_left"}
+
+
+def rotation_order(task, stem: str, n_max: int = 48, need: float = 0.5) -> int:
+    """How many times the stroke drawing of an axis view repeats around the image centre (1 = not at all)."""
+    view = next((v for v in task.views if v.stem == stem), None)
+    if view is None:
+        return 1
+    img = _rgb(view)
+    part = img.min(axis=2) < 235
+    stroke = (img.max(axis=2) < STROKE) & ndimage.binary_erosion(part, iterations=6)    # inner strokes only
+    if stroke.sum() < 200:
+        return 1
+    near = ndimage.binary_dilation(stroke, iterations=3)
+    ys, xs = np.nonzero(stroke)
+    mid = img.shape[0] / 2
+    dx, dy = xs + 0.5 - mid, ys + 0.5 - mid
+    keep = np.hypot(dx, dy) > 0.15 * img.shape[0] / 2
+    dx, dy = dx[keep], dy[keep]
+    def match(angle):
+        x = np.clip((mid + dx * np.cos(angle) - dy * np.sin(angle)).astype(int), 0, img.shape[1] - 1)
+        y = np.clip((mid + dx * np.sin(angle) + dy * np.cos(angle)).astype(int), 0, img.shape[0] - 1)
+        return float(near[y, x].mean())
+
+    # concentric circles map onto themselves at any angle: that is no pattern
+    scores = {n: match(2 * np.pi / n) for n in range(3, n_max + 1)}
+    generic = float(np.median(list(scores.values())))
+    n = max(scores, key=scores.get)
+    return n if scores[n] >= max(need, generic + 0.2) else 1
+
+
+def carve_radial(body, task, log: list | None = None, taper: bool = True):
+    """Grooves around the axis of a turned body (see above). Returns the carved cq.Workplane, or
+    `body` unchanged if the part is not turned or shows no repeating pattern."""
+    import cadquery as cq
+
+    from .compile import _largest_solid, revolve_axis
+    from .geometry import brep_genus, shape_to_mesh
+    from .vision import edge_score, mask_polygons, shape_score, target_masks
+
+    axis = revolve_axis(task)
+    if axis is None:
+        return body
+    stem = AXIS_VIEW[axis]
+    n = rotation_order(task, stem)
+    if n < 3:
+        return body
+    size = box_size(task.facts)
+    k = "XYZ".index(axis)
+    shape = body.val() if hasattr(body, "val") else body
+    mesh = shape_to_mesh(shape)
+    faces = [f for f in face_depths(task, stem, hull_mesh=mesh)
+             if f["contain"] >= 0.8 and f["uniform"] >= 0.15 and f["edge"] >= 0.25 and f["depth"] > 0.02 * size[k]]
+    if not faces:
+        return body
+    cam = Camera(stem, size, faces[0]["mask"].shape[0])
+    # the deepest level seen between the fins, and every opening at that level, copied n times
+    ds = np.array([f["depth"] for f in faces])
+    votes = [(np.abs(ds - d) < 0.02 * size[k]).sum() for d in ds]      # the level most faces agree on
+    depth = float(np.median(ds[np.abs(ds - ds[int(np.argmax(votes))]) < 0.02 * size[k]]))
+    seed = np.zeros_like(faces[0]["mask"])
+    for f in faces:
+        if abs(f["depth"] - depth) < 0.02 * size[k]:
+            seed |= f["mask"]          # not grown: neighbouring openings must stay separate pieces
+    opening = np.zeros_like(seed)
+    for i in range(n):
+        opening |= ndimage.rotate(seed.astype(np.uint8), 360.0 * i / n, reshape=False, order=0) > 0
+    part = _rgb(next(v for v in task.views if v.stem == stem)).min(axis=2) < 235
+    opening &= part
+    polys = [p["outer"] for p in mask_polygons(opening, 0.7)]
+    if len(polys) < n // 2:
+        return body
+    corners = np.array([[x, y, z] for x in (0, size[0]) for y in (0, size[1]) for z in (0, size[2])]) @ cam.f
+    near = corners.min()
+    centre = size / 2
+    level0 = (near + depth) * cam.f[k]              # coordinate along the axis of the faces we look down on
+    toward = -cam.f[k]                              # +1 if the camera sits at the high end of the axis
+    far_end = size[k] if toward > 0 else 0.0
+
+    def ring3(px, level, scale=1.0, grow=1.0):
+        ab = cam.plane_mm(px)
+        pts = ab[:, :1] * cam.r + ab[:, 1:] * cam.u
+        pts[:, k] = 0.0
+        rel = pts - centre * (np.arange(3) != k)
+        rad = np.linalg.norm(rel, axis=1, keepdims=True)
+        rel = rel * scale * np.where(rad > 0.9 * rad.max(), grow, 1.0)   # outer corners pushed out so the cut clears the rim
+        pts = rel + centre * (np.arange(3) != k)
+        pts[:, k] = level
+        return [cq.Vector(*p) for p in pts]
+
+    masks = target_masks(task)
+    vol_target = float(task.facts.get("volume_mm3") or 0.0)
+    g0 = brep_genus(shape)
+
+    def accept(new, base_edge, what):
+        if not new.isValid() or new.Volume() > 0.9995 * shape.Volume():
+            return None
+        if vol_target and new.Volume() < 0.985 * vol_target:
+            return None
+        m = shape_to_mesh(new)
+        if brep_genus(new) != g0 or shape_score(m, task, masks)["mean"] < base_sil - 0.003:
+            return None
+        e = edge_score(m, task)["all"]
+        if log is not None:
+            log.append(f"{what}: volume x{new.Volume() / vol_target if vol_target else 0:.2f}, edge score {base_edge:.3f} -> {e:.3f}")
+        return e if e > base_edge + 0.002 else None
+
+    base_sil = shape_score(mesh, task, masks)["mean"]
+    edge = edge_score(mesh, task)["all"]
+    # 2. straight down onto the faces between the fins
+    try:
+        tools = [cq.Solid.extrudeLinear(cq.Face.makeFromWires(cq.Wire.makePolygon(ring3(p, level0, grow=1.15), close=True)),
+                                        cq.Vector(*(np.eye(3)[k] * (far_end - level0 + toward)))) for p in polys]
+        new = _largest_solid(shape.cut(*tools))
+        e = accept(new, edge, f"{n}-fold pattern, {len(polys)} openings straight along {axis}")
+        if e is not None:
+            shape, edge = new, e
+    except Exception as exc:
+        if log is not None:
+            log.append(f"radial straight cut failed: {type(exc).__name__}")
+    # 3. the same openings shrinking with the profile: try a few end heights, keep the best
+    if taper:
+        verts = np.asarray(shape_to_mesh(body.val() if hasattr(body, "val") else body).vertices)
+        rad = np.linalg.norm((verts - centre)[:, np.arange(3) != k], axis=1)
+
+        def radius_at(level):
+            sel = np.abs(verts[:, k] - level) < 0.03 * size[k]
+            return float(rad[sel].max()) if sel.any() else 0.0
+
+        r0 = radius_at(level0 + toward * 0.03 * size[k])
+        best = None
+        for frac in (0.5, 0.65, 0.8, 0.9, 1.0):
+            level1 = level0 + frac * (far_end - level0)
+            r1 = radius_at(level1)
+            if r0 <= 0 or r1 <= 0 or r1 >= r0:
+                continue
+            try:
+                tools = []
+                for p in polys:
+                    w0 = cq.Wire.makePolygon(ring3(p, level0, 1.0, 1.15), close=True)
+                    w1 = cq.Wire.makePolygon(ring3(p, level1, r1 / r0, 1.15), close=True)
+                    tools.append(cq.Solid.makeLoft([w0, w1], True))
+                new = _largest_solid(shape.cut(*tools))
+                e = accept(new, edge, f"{n}-fold grooves narrowing to {frac:.0%} of the way along {axis}")
+            except Exception as exc:
+                if log is not None:
+                    log.append(f"radial tapered cut failed: {type(exc).__name__}: {str(exc)[:60]}")
+                continue
+            if e is not None and (best is None or e > best[0]):
+                best = (e, new)
+        if best:
+            edge, shape = best
+    return cq.Workplane("XY").newObject([shape])

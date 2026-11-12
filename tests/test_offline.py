@@ -223,3 +223,16 @@ def test_edge_score_sees_what_a_silhouette_cannot(plate, tmp_path):
     with_pocket, without = load_mesh(pocketed.step_path), load_mesh(plate.step_path)
     assert abs(shape_score(with_pocket, task)["mean"] - shape_score(without, task)["mean"]) < 0.01
     assert edge_score(with_pocket, task)["all"] > edge_score(without, task)["all"] + 0.02
+
+
+def test_a_body_with_the_wrong_volume_is_sent_back(plate, task, tmp_path):
+    thick = ("from forge.library import box, cylinder, cut, union\n"
+             "holes = [cylinder((x, y, -1), (x, y, 9), 6) for x, y in ((8, 8), (72, 8), (8, 42), (72, 42))]\n"
+             "result = cut(box((0, 0, 0), (80, 50, 8)), holes, box((10, 15, 2), (70, 35, 9)))\n")     # a pocket the part does not have
+    right = thick.replace(", box((10, 15, 2), (70, 35, 9))", "")
+    llm = ScriptedLLM([fenced(thick), fenced(right)])
+    summary = Agent(llm, get_backend(), n_candidates=1).solve(load_tasks(task)[0], tmp_path)
+    log = summary["candidates"][0]["log"]
+    assert "volume off" in log[0] and "volume off" not in log[1]
+    assert "material is missing" in llm.calls[1][1][-1]["text"]
+    assert score(summary["step"], plate.step_path)["score"] > 0.99

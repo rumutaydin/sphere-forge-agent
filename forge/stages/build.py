@@ -138,6 +138,25 @@ def envelope_problem(result, facts: dict) -> str:
     return "\n".join(lines)
 
 
+def volume_problem(check: dict, facts: dict, tol: float = 0.10) -> str:
+    """Empty if the finished body's volume is within `tol` of the facts; else what to tell the model."""
+    ratio, target = check.get("volume_ratio"), facts.get("volume_mm3") if facts else None
+    if not ratio or not target or abs(ratio - 1) <= tol:
+        return ""
+    have = ratio * target
+    if ratio > 1:
+        return (f"This program runs and has the right envelope, but the part is too full. After trimming to the outline "
+                f"and cutting the listed bores it has {have:.0f} mm^3; the real part has {target:.0f} mm^3. "
+                f"{have - target:.0f} mm^3 more must be EMPTY ({(1 - 1 / ratio):.0%} of what you built). Surface area is "
+                f"x{check.get('area_ratio', 1):.2f} of the real part's. Look at the views again, the isometric ones above "
+                "all: where is the real part open that yours is solid? Deeper or more grooves, thinner fins or walls, "
+                "a pocket, an open tray, a hollow. Remove that, with numbers that add up to the volume to remove.")
+    return (f"This program runs and has the right envelope, but material is missing. After trimming to the outline and "
+            f"cutting the listed bores it has {have:.0f} mm^3; the real part has {target:.0f} mm^3. "
+            f"{target - have:.0f} mm^3 of material is missing: a mass you left out, a wall or web that is too thin, or a "
+            "cut that is too deep. Add it, with numbers that add up.")
+
+
 def run_with_repair(llm: LLM, backend: CadBackend, cand: Candidate, task: Task, task_blocks: list[dict],
                     repairs: int = 2, hull: Path | None = None, deadline: float | None = None) -> None:
     """Run the candidate's body program finished by code. On a crash, or on a body that does
@@ -165,16 +184,19 @@ def run_with_repair(llm: LLM, backend: CadBackend, cand: Candidate, task: Task, 
             if kept is None or check.get("estimate", -1) > kept[2].get("estimate", -1):
                 kept = (cand.code, res, check)
             problem = envelope_problem(res, task.facts)
-            cand.log.append(f"ran (estimate {check.get('estimate', 0):.3f}, bores {best[2]})"
-                            + (", envelope wrong" if problem else ""))
-            if not problem:
+            budget = "" if problem else volume_problem(check, task.facts)
+            cand.log.append(f"ran (estimate {check.get('estimate', 0):.3f}, bores {best[2]}, volume x{check.get('volume_ratio', 0):.2f})"
+                            + (", envelope wrong" if problem else ", volume off" if budget else ""))
+            if not problem and not budget:
                 break
         else:
             cand.log.append(f"error: {res.error.splitlines()[-1] if res.error else '?'}")
         left = _left(deadline)
         if attempt == repairs or (left is not None and left < 45):
             break
-        if ran:
+        if ran and not problem:
+            what = budget
+        elif ran:
             what = ("This program runs, but the body is not where it must be:\n" + problem + "\n\n"
                     "Usual causes: a coordinate measured from the part's centre instead of the minimum corner, "
                     "a mass that is missing at one end, or a solid that sticks out. Correct the coordinates.")
@@ -198,14 +220,25 @@ def run_with_repair(llm: LLM, backend: CadBackend, cand: Candidate, task: Task, 
 
 
 def floor_note(floor: dict | None, facts: dict) -> str:
-    """What the no-model part already achieves, so the model knows what is left to fix."""
-    if not floor or not floor.get("check"):
+    """The volume budget: what the outline of the views encloses against what the part really has,
+    so the model has to reconcile the pictures with the numbers before it models anything."""
+    if not floor or not floor.get("check") or not facts.get("volume_mm3"):
         return ""
     c = floor["check"]
-    over = c.get("volume_ratio", 1.0)
-    lines = [f"A part built from the silhouettes of the views and the facts' bores already exists: "
-             f"volume x{over:.2f} of the target, surface area x{c.get('area_ratio', 1):.2f}."]
-    if over > 1.03 and facts.get("volume_mm3"):
-        lines.append(f"It is too full by about {(over - 1) * facts['volume_mm3']:.0f} mm^3: that much material sits "
-                     "in pockets, recesses or hollows that no outline shows. Your body must leave those open.")
+    over, area, target = c.get("volume_ratio", 1.0), c.get("area_ratio", 1.0), float(facts["volume_mm3"])
+    lines = ["VOLUME BUDGET (computed, exact):",
+             f"- the real part: {target:.0f} mm^3, surface {facts.get('surface_area_mm2', 0):.0f} mm^2",
+             f"- a solid that fills the outlines of all eight views, with the listed bores cut: {over * target:.0f} mm^3 "
+             f"(x{over:.2f}), surface x{area:.2f} of the real part's"]
+    if over > 1.05:
+        lines.append(f"- so {(over - 1) * target:.0f} mm^3 inside the outline is EMPTY in the real part "
+                     f"({1 - 1 / over:.0%} of the outline solid). No outline shows where; the shading and the lines inside "
+                     "the views do, the two isometric views most of all.")
+        if area < 0.8:
+            lines.append("- the real surface is much larger than the outline solid's: expect thin fins or ribs with deep "
+                         "gaps between them, an open tray, or a thin-walled shell, not a few shallow pockets.")
+        lines.append("Before the code, state in one line where that empty volume is and which view shows it. "
+                     "Your body's volume must come out near the real part's.")
+    else:
+        lines.append("- the outline solid is already close in volume: keep the masses where the outline has them.")
     return "\n".join(lines)
