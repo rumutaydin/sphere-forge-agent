@@ -46,6 +46,10 @@ limit (~0.88) is ours. New structure:
 Open: part 6's stated volume is below its own flange+cap volume (V1 lab note). Measure the real
 volume of retrieved parts against the briefs before trusting the volume gate.
 
+Extended set (20 parts, briefs + views + facts, no answers): after the merge, run the pipeline on
+them on the team's other compute (brief-only inputs, facts.json removed), then score the outputs
+against the real facts and views here. This is our closest stand-in for the hidden set.
+
 ## P0 (BEFORE V1): hidden parts come WITHOUT facts.json
 
 The organisers' extended practice set (`~/Downloads/extended-practice.zip`, 20 parts with briefs,
