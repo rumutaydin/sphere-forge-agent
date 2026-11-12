@@ -1,8 +1,8 @@
 {
- "what": "TRIAL: raw-CadQuery model pass with the API cheat sheet (old a/two-pass code, thinking off, Qwen3.5-27B); outputs NOT reproducible by this commit's code",
+ "what": "GLM-5.3-Flash FP4-Local (320B) on 2x RTX PRO 6000, thinking on (effort low), 16,000 tokens, 3 helper bodies per part. Files written by the code of 14 (before envelope fill and the shell step of 16-18); one run, 1,687 s. Model bodies chosen on 4, 6 and 7; the other six parts are the files of 14.",
  "n_cases": 9,
  "leaderboard": null,
- "mean_estimate": 0.7937,
+ "mean_estimate": 0.8495,
  "holes_right": 9,
  "cases": {
   "test_case_1": {
@@ -13,7 +13,7 @@
    "holes": 1.0,
    "volume_ratio": 0.999,
    "area_ratio": 1.001,
-   "silhouette_iou": 0.9938
+   "silhouette_iou": 0.9939
   },
   "test_case_2": {
    "valid": true,
@@ -37,13 +37,13 @@
   },
   "test_case_4": {
    "valid": true,
-   "estimate": 0.8255,
-   "self_score": 0.9201,
+   "estimate": 0.8812,
+   "self_score": 0.9851,
    "dimensions": 1.0,
    "holes": 1.0,
-   "volume_ratio": 1.169,
-   "area_ratio": 1.139,
-   "silhouette_iou": 0.9925
+   "volume_ratio": 1.043,
+   "area_ratio": 1.008,
+   "silhouette_iou": 0.9795
   },
   "test_case_5": {
    "valid": true,
@@ -57,23 +57,23 @@
   },
   "test_case_6": {
    "valid": true,
-   "estimate": 0.4895,
-   "self_score": 0.6137,
-   "dimensions": 1.0,
+   "estimate": 0.719,
+   "self_score": 0.8523,
+   "dimensions": 0.998,
    "holes": 1.0,
-   "volume_ratio": 3.234,
-   "area_ratio": 0.403,
-   "silhouette_iou": 0.9935
+   "volume_ratio": 1.341,
+   "area_ratio": 0.763,
+   "silhouette_iou": 0.91
   },
   "test_case_7": {
    "valid": true,
-   "estimate": 0.618,
-   "self_score": 0.8337,
-   "dimensions": 0.995,
+   "estimate": 0.8351,
+   "self_score": 0.9459,
+   "dimensions": 1.0,
    "holes": 1.0,
-   "volume_ratio": 1.886,
-   "area_ratio": 0.919,
-   "silhouette_iou": 0.9783
+   "volume_ratio": 1.007,
+   "area_ratio": 0.827,
+   "silhouette_iou": 0.8709
   },
   "test_case_8": {
    "valid": true,
@@ -93,9 +93,8 @@
    "holes": 1.0,
    "volume_ratio": 1.231,
    "area_ratio": 0.722,
-   "silhouette_iou": 0.9961
+   "silhouette_iou": 0.996
   }
  },
- "settings": "FORGE_THINKING=off FORGE_TEMPERATURE=0 FORGE_SEED=1 FORGE_MAX_TOKENS=6000 FORGE_LLM_TIMEOUT_S=600 FORGE_MODEL_PASS=on FORGE_CANDIDATES=3 FORGE_ROUNDS=0 FORGE_SKIP_ABOVE=1.01 FORGE_BUDGET_S=1800 FORGE_CQ_REFERENCE=on",
- "note": "Scoring trial only. Made by branch c/cadquery-cheatsheet (old a/two-pass code + CadQuery cheat sheet) on 12 Nov morning with Qwen3.5-27B; this commit's code does not reproduce these files."
+ "settings": "FORGE_THINKING=on FORGE_REASONING_EFFORT=low FORGE_MAX_TOKENS=16000 FORGE_LLM_TIMEOUT_S=700 FORGE_CANDIDATES=3 FORGE_CARVE=0 FORGE_MODEL_MARGIN=0.02 FORGE_EDGE_VETO=0.015 FORGE_WORKERS=9 FORGE_BUDGET_S=3000"
 }
