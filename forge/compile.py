@@ -504,11 +504,18 @@ def revolve_body(task, axis: str | None = None, tol_px: float = 0.5):
 
 def body_sources(task) -> list[tuple[str, object]]:
     """Every no-model body we can make for this task, cheapest first. Holes are NOT cut yet."""
+    return list(iter_body_sources(task))
+
+
+def iter_body_sources(task):
+    """The same, one at a time, so the caller can measure and write each body before the next
+    (slower, riskier) source runs: a kernel crash in a late source then costs nothing."""
     import cadquery as cq
 
     out = [("box", cq.Workplane("XY").box(*box_size(task.facts), centered=False))]
+    yield out[-1]
     if not task.views:
-        return out
+        return
     makers = [
         ("hull3", lambda: hull_body(task, AXIS_VIEWS, keep_holes=True)),
         ("hull5", lambda: hull_body(task, AXIS_VIEWS + ISO_VIEWS, keep_holes=True)),
@@ -522,6 +529,22 @@ def body_sources(task) -> list[tuple[str, object]]:
             continue
         if body is not None:
             out.append((name, body))
+            yield out[-1]
+    # A turned body whose axis view shows a pattern repeating around the axis (fins, grooves):
+    # forge/layers.py: carve_radial. Kept only if the line drawing then matches the views better.
+    import os
+
+    turned = [b for n, b in out if n == "revolve"]
+    if turned and os.environ.get("FORGE_RADIAL", "on").lower() not in ("off", "0", "no", "false"):
+        try:
+            from .layers import carve_radial
+
+            grooved = carve_radial(turned[0], task, log=[])
+            if grooved.val().Volume() < 0.999 * turned[0].val().Volume():
+                out.append(("revolve-radial", grooved))
+                yield out[-1]
+        except Exception as exc:
+            print(f"{task.name}: body source revolve-radial failed: {type(exc).__name__}: {exc}", flush=True)
     # The tightest hull again, with the space in front of every face a bore starts from removed
     # (forge/layers.py): pockets and recessed faces that no outline shows.
     hulls = [b for n, b in out if n == "hull5"] or [b for n, b in out if n == "hull3"]
@@ -536,6 +559,7 @@ def body_sources(task) -> list[tuple[str, object]]:
             carved = carve_mouth_faces(hulls[0], task, log=log)
             if carved.val().Volume() < 0.999 * hulls[0].val().Volume():
                 out.append(("hull-faces", carved))
+                yield out[-1]
         except Exception as exc:
             print(f"{task.name}: body source hull-faces failed: {type(exc).__name__}: {exc}", flush=True)
     # ... and with every flat face that sits deeper than the hull shows it cut down to its depth
@@ -548,9 +572,9 @@ def body_sources(task) -> list[tuple[str, object]]:
             deep = carve_layers(start, task, log=[])
             if deep.val().Volume() < 0.999 * start.val().Volume():
                 out.append(("hull-depth", deep))
+                yield out[-1]
         except Exception as exc:
             print(f"{task.name}: body source hull-depth failed: {type(exc).__name__}: {exc}", flush=True)
-    return out
 
 
 # --- measure, rank, write --------------------------------------------------------------
@@ -633,7 +657,7 @@ def compile_part(task, out_dir: str | Path, sources=None, publish: str | Path | 
         return row
 
     bodies = []
-    for name, body in (sources if sources is not None else body_sources(task)):
+    for name, body in (sources if sources is not None else iter_body_sources(task)):
         bodies.append((name, body))
         if not has_holes:
             add(name, body)

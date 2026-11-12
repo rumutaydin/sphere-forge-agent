@@ -9,7 +9,7 @@ Rules this file enforces:
   - the whole run stays inside the wall-clock budget (1 hour limit; default 50 min)
 
 Settings (environment): FORGE_BUDGET_S (3000), FORGE_PASS1_S (600, per part), FORGE_WORKERS (9),
-FORGE_CANDIDATES (2), FORGE_CARVE (0), FORGE_ROUNDS (0), FORGE_FACES (on), FORGE_DEPTH (on),
+FORGE_CANDIDATES (2), FORGE_CARVE (0), FORGE_ROUNDS (0), FORGE_FACES (on), FORGE_DEPTH (on), FORGE_RADIAL (on),
 FORGE_MODEL_MARGIN (0.02), FORGE_EDGE_VETO (0.015), FORGE_MODEL_PASS (on), FORGE_SKIP_ABOVE (0.90).
 """
 from __future__ import annotations
@@ -59,8 +59,11 @@ def pass1(task: Task, work: Path, out_file: Path, budget_s: float) -> dict | Non
     if task.dir is None or not task.facts.get("bounding_box_mm"):
         return None
     try:
-        subprocess.run([sys.executable, "-m", "forge.compile", str(task.dir), str(out), str(out_file), str(budget_s * 0.8)],
-                       cwd=Path(__file__).resolve().parents[1], timeout=budget_s, capture_output=True, text=True)
+        proc = subprocess.run([sys.executable, "-m", "forge.compile", str(task.dir), str(out), str(out_file), str(budget_s * 0.8)],
+                              cwd=Path(__file__).resolve().parents[1], timeout=budget_s, capture_output=True, text=True)
+        if proc.returncode != 0:
+            print(f"{task.name}: pass 1 ended with code {proc.returncode}; keeping what it had. "
+                  f"{(proc.stderr or '').strip()[-300:]}", flush=True)
     except subprocess.TimeoutExpired:
         print(f"{task.name}: pass 1 stopped at {budget_s:.0f}s; keeping what it had", flush=True)
     try:

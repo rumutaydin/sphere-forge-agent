@@ -476,7 +476,21 @@ def carve_radial(body, task, log: list | None = None, taper: bool = True):
         opening |= ndimage.rotate(seed.astype(np.uint8), 360.0 * i / n, reshape=False, order=0) > 0
     part = _rgb(next(v for v in task.views if v.stem == stem)).min(axis=2) < 235
     opening &= part
-    polys = [p["outer"] for p in mask_polygons(opening, 0.7)]
+    polys = []
+    mid = opening.shape[0] / 2
+    for poly in mask_polygons(opening, 0.7):
+        # each opening as a plain triangle: its innermost point and its two outermost corners.
+        # A pixel-traced outline has hundreds of corners and makes every cut very slow.
+        p = poly["outer"]
+        d = p + 0.5 - mid
+        rad, ang = np.hypot(d[:, 0], d[:, 1]), np.arctan2(d[:, 1], d[:, 0])
+        apex = int(rad.argmin())
+        rel = (ang - ang[apex] + np.pi) % (2 * np.pi) - np.pi
+        outer = rad > 0.9 * rad.max()
+        if outer.sum() < 2 or np.ptp(rel[outer]) < 1e-3 or np.ptp(rel) > np.pi / 2:
+            continue
+        idx = np.flatnonzero(outer)
+        polys.append(p[[apex, idx[rel[outer].argmin()], idx[rel[outer].argmax()]]])
     if len(polys) < n // 2:
         return body
     corners = np.array([[x, y, z] for x in (0, size[0]) for y in (0, size[1]) for z in (0, size[2])]) @ cam.f
@@ -486,13 +500,14 @@ def carve_radial(body, task, log: list | None = None, taper: bool = True):
     toward = -cam.f[k]                              # +1 if the camera sits at the high end of the axis
     far_end = size[k] if toward > 0 else 0.0
 
-    def ring3(px, level, scale=1.0, grow=1.0):
+    def ring3(px, level, scale=1.0, grow=1.0, inner=1.0):
         ab = cam.plane_mm(px)
         pts = ab[:, :1] * cam.r + ab[:, 1:] * cam.u
         pts[:, k] = 0.0
         rel = pts - centre * (np.arange(3) != k)
         rad = np.linalg.norm(rel, axis=1, keepdims=True)
         rel = rel * scale * np.where(rad > 0.9 * rad.max(), grow, 1.0)   # outer corners pushed out so the cut clears the rim
+        rel = rel * np.where(rad > 0.9 * rad.max(), 1.0, inner)          # the apex pulled toward the axis: a deeper groove
         pts = rel + centre * (np.arange(3) != k)
         pts[:, k] = level
         return [cq.Vector(*p) for p in pts]
@@ -538,7 +553,7 @@ def carve_radial(body, task, log: list | None = None, taper: bool = True):
 
         r0 = radius_at(level0 + toward * 0.03 * size[k])
         best = None
-        for frac in (0.5, 0.65, 0.8, 0.9, 1.0):
+        for frac in (0.6, 0.8, 1.0):
             level1 = level0 + frac * (far_end - level0)
             r1 = radius_at(level1)
             if r0 <= 0 or r1 <= 0 or r1 >= r0:

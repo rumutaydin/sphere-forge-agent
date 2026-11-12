@@ -99,6 +99,15 @@ model body. Number: rank correlation with the leaderboard within a part.
 
 ### T2. Part 6: radial patterns (Track C)
 
+**Built 12 Nov** (`forge/layers.py: carve_radial`, body source `revolve-radial`): edge
+score on part 6 0.18 → 0.32, volume ×3.23 → ×2.84; leaderboard value in approach `12`.
+Open: the grooves are only as deep as the top view shows at the flange (valley at 51 of
+70 mm), yet the volume says far more is empty; view 7 shows thin fins with deep gaps.
+Try deeper valleys higher up, judged by the edge score. It also takes 225 s; the checks
+(17 s each) are the cost.
+
+What the task was:
+
 Count the pattern from the top view: sample the stroke image on a circle around the
 axis and take the strongest period (16 here). Then cut one V wedge and repeat it with
 `polar` (`forge/library/solids.py`); the wedge's inner and outer radius come from where
