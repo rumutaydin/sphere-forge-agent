@@ -33,8 +33,8 @@ def score_of(check: dict) -> float:
 
 class Agent:
     def __init__(self, llm: LLM, backend: CadBackend, n_candidates: int = 2, repairs: int = 2, rounds: int = 0,
-                 n_carve: int = 0, margin: float = 0.02):
-        self.llm, self.backend, self.n_carve, self.margin = llm, backend, n_carve, margin
+                 n_carve: int = 0, margin: float = 0.02, edge_veto: float = 0.015):
+        self.llm, self.backend, self.n_carve, self.margin, self.edge_veto = llm, backend, n_carve, margin, edge_veto
         self.n_candidates, self.repairs, self.rounds = n_candidates, repairs, rounds
 
     def fallback(self, task: Task, out_dir: Path) -> Path | None:
@@ -66,6 +66,19 @@ class Agent:
             if floor and cand.check.get("dimensions", 1.0) < floor["check"].get("dimensions", 1.0) - 0.01:
                 cand.log.append("not offered: outer dimensions worse than the no-model part's")
                 return      # dimensions are 20% of the score and the no-model part has them exact
+            if floor and floor["check"].get("edge_all") is not None and score_of(cand.check) > best["score"]:
+                # Edges inside the outline: on the leaderboard, model results that lowered this
+                # were the ones that lost points (scripts/calibrate_edges.py).
+                from .vision import edge_score
+
+                try:
+                    cand.check["edge_all"] = edge_score(cand.result.step_path, task)["all"]
+                except Exception:
+                    cand.check["edge_all"] = None
+                if cand.check["edge_all"] is not None and cand.check["edge_all"] < floor["check"]["edge_all"] - self.edge_veto:
+                    cand.log.append(f"not offered: its edges match the views worse than the no-model part's "
+                                    f"({cand.check['edge_all']:.3f} against {floor['check']['edge_all']:.3f})")
+                    return
             with lock:
                 # A model result must beat the no-model part by a clear margin: the estimate cannot
                 # see inside the outline, and on the leaderboard small estimated gains were noise

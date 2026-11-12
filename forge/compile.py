@@ -658,6 +658,15 @@ def compile_part(task, out_dir: str | Path, sources=None, publish: str | Path | 
             except Exception as exc:
                 print(f"{task.name}: {name}+holes-fit failed: {type(exc).__name__}: {exc}", flush=True)
     rows.sort(key=lambda r: -r["estimate"])
+    if rows and task.views:
+        # the line drawing of the best part against the strokes of the views: the model pass may
+        # not replace this part with one whose inside matches the views worse (forge/pipeline.py)
+        try:
+            from .vision import edge_score
+
+            rows[0]["check"]["edge_all"] = edge_score(rows[0]["step"], task)["all"]
+        except Exception as exc:
+            print(f"{task.name}: edge score failed: {type(exc).__name__}: {exc}", flush=True)
     (out_dir / "compile.json").write_text(json.dumps(rows, indent=1))
     return rows
 

@@ -56,7 +56,33 @@ Each is one to three hours, offline unless marked GPU, and ends in one number.
 (nine practice parts, no model, 7 min on the laptop), `uv run python
 scripts/bench_layers.py --tag <t>` (12 reference parts with answers).
 
-### T1. An edge score: see inside the outline (highest value, unblocks the rest)
+### T1. An edge score: see inside the outline (built 12 Nov; first use wired in)
+
+**Result.** `forge/vision.py: edge_score` draws our part as lines (where the surface normal
+turns by more than 28° or the depth jumps, from a real depth buffer) and compares them with
+the strokes of the eight views. Tested on the 72 part scores of eight submissions
+(`scripts/calibrate_edges.py`, 4.5 min):
+
+| Within a part, rank correlation with the leaderboard | estimate | edge score |
+|---|---|---|
+| all variants | 0.68 | **0.78** |
+| without the boxes | 0.48 | **0.65** |
+
+On the 21 cases where a model result or a carving step replaced the floor and the
+leaderboard moved: the estimate said "better" every time (7 were worse). The edge score
+flagged 6 of those 7 losses (all but part 5's face carving) and wrongly flagged 5 of the
+14 gains, three of them changes under 0.005. So it is a **veto**, not a replacement: a
+model body is refused if its edge score is more than 0.015 below the no-model part's
+(`FORGE_EDGE_VETO`). Replayed on those cases, that avoids 0.082 of losses and gives up
+0.027 of gains. It costs about 17 s per check at 1024 px.
+
+**Still to do with it:** (a) use it as the acceptance test for cuts in
+`forge/layers.py` and for T2–T4, where it should rise when a groove or tray lands in the
+right place; (b) it scores 0.70 on an exact part because the views also stroke smooth
+seams we do not draw: find what those are; (c) make it faster (512 px, or only the views
+a change touches).
+
+What the task was:
 
 Our estimate compares outlines and volume. It cannot tell a groove in the right place
 from one in the wrong place, which is why it promised +0.36 for `09` and the leaderboard

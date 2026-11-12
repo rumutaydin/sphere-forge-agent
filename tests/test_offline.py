@@ -199,3 +199,27 @@ def test_a_body_off_the_envelope_is_sent_back(plate, task, tmp_path):
     assert "envelope wrong" in log[0] and "envelope wrong" not in log[1]
     assert "X: your body spans -40.00 .. 40.00, it must span 0 .. 80.00" in llm.calls[1][1][-1]["text"]
     assert score(summary["step"], plate.step_path)["score"] > 0.99
+
+
+def test_edge_score_sees_what_a_silhouette_cannot(plate, tmp_path):
+    """A pocket in the top face changes no outline of the plate, but the line drawing shows it."""
+    import numpy as np
+    from PIL import Image
+
+    import cadquery as cq
+
+    from forge.render import render_organiser_views
+    from forge.vision import edge_score, shape_score
+
+    case = tmp_path / "in" / "test_case_1"
+    case.mkdir(parents=True)
+    pocketed = get_backend().execute(
+        PLATE + "result = result.cut(cq.Workplane('XY').box(30, 20, 4, centered=False).translate((25, 15, 5)))\n", tmp_path / "p")
+    shape = cq.importers.importStep(str(pocketed.step_path)).val()
+    render_organiser_views(shape, case / "images", [80, 50, 8], px=512)
+    (case / "description.md").write_text("A plate with a pocket.")
+    (case / "facts.json").write_text(json.dumps(facts_from_measure(pocketed.measure)))
+    task = load_tasks(tmp_path / "in")[0]
+    with_pocket, without = load_mesh(pocketed.step_path), load_mesh(plate.step_path)
+    assert abs(shape_score(with_pocket, task)["mean"] - shape_score(without, task)["mean"]) < 0.01
+    assert edge_score(with_pocket, task)["all"] > edge_score(without, task)["all"] + 0.02

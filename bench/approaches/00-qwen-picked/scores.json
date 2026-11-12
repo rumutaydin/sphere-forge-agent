@@ -13,7 +13,8 @@
    "holes": 1.0,
    "volume_ratio": 1.003,
    "area_ratio": 1.036,
-   "silhouette_iou": 0.9424
+   "silhouette_iou": 0.9424,
+   "leaderboard": 0.862
   },
   "test_case_2": {
    "valid": true,
@@ -23,7 +24,8 @@
    "holes": 1.0,
    "volume_ratio": 1.0,
    "area_ratio": 0.971,
-   "silhouette_iou": 0.9367
+   "silhouette_iou": 0.9367,
+   "leaderboard": 0.879
   },
   "test_case_3": {
    "valid": true,
@@ -33,7 +35,8 @@
    "holes": 1.0,
    "volume_ratio": 1.0,
    "area_ratio": 1.0,
-   "silhouette_iou": 0.9969
+   "silhouette_iou": 0.9969,
+   "leaderboard": 0.997
   },
   "test_case_4": {
    "valid": true,
@@ -43,7 +46,8 @@
    "holes": 1.0,
    "volume_ratio": 1.418,
    "area_ratio": 0.942,
-   "silhouette_iou": 0.8733
+   "silhouette_iou": 0.8733,
+   "leaderboard": 0.731
   },
   "test_case_5": {
    "valid": true,
@@ -53,7 +57,8 @@
    "holes": 0.933,
    "volume_ratio": 1.0,
    "area_ratio": 1.022,
-   "silhouette_iou": 0.8969
+   "silhouette_iou": 0.8969,
+   "leaderboard": 0.709
   },
   "test_case_6": {
    "valid": true,
@@ -63,7 +68,8 @@
    "holes": 1.0,
    "volume_ratio": 2.06,
    "area_ratio": 0.79,
-   "silhouette_iou": 0.9117
+   "silhouette_iou": 0.9117,
+   "leaderboard": 0.633
   },
   "test_case_7": {
    "valid": true,
@@ -73,7 +79,8 @@
    "holes": 0.0,
    "volume_ratio": 7.204,
    "area_ratio": 1.132,
-   "silhouette_iou": 0.5998
+   "silhouette_iou": 0.5998,
+   "leaderboard": 0.216
   },
   "test_case_8": {
    "valid": true,
@@ -83,7 +90,8 @@
    "holes": 1.0,
    "volume_ratio": 1.492,
    "area_ratio": 0.93,
-   "silhouette_iou": 0.844
+   "silhouette_iou": 0.844,
+   "leaderboard": 0.687
   },
   "test_case_9": {
    "valid": true,
@@ -93,7 +101,8 @@
    "holes": 0.0,
    "volume_ratio": 4.507,
    "area_ratio": 0.597,
-   "silhouette_iou": 0.8153
+   "silhouette_iou": 0.8153,
+   "leaderboard": 0.211
   }
  },
  "settings": null
