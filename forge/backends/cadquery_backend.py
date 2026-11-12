@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -42,7 +43,7 @@ class CadQueryBackend(CadBackend):
     def box_code(self, x: float, y: float, z: float) -> str:
         return f"import cadquery as cq\nresult = cq.Workplane('XY').box({x}, {y}, {z}, centered=False)\n"
 
-    def execute(self, code: str, out_dir: Path, timeout: float = 90) -> ExecResult:
+    def execute(self, code: str, out_dir: Path, timeout: float = 90, env: dict | None = None) -> ExecResult:
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         code_path = out_dir / "part.py"
@@ -52,6 +53,7 @@ class CadQueryBackend(CadBackend):
             proc = subprocess.run(
                 [sys.executable, str(runner), str(code_path), str(out_dir)],
                 capture_output=True, text=True, timeout=timeout,
+                env={**os.environ, **(env or {})},
             )
         except subprocess.TimeoutExpired:
             return ExecResult(False, f"timed out after {timeout:.0f}s (geometry too heavy?)")

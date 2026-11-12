@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import io
 import os
+import sys
 from pathlib import Path
 
 from PIL import Image
@@ -31,21 +32,41 @@ def image_block(path: str | Path, max_side: int = 768) -> dict:
 
 
 class LLM:
-    def complete(self, system: str, content: list[dict]) -> str:
+    def complete(self, system: str, content: list[dict], timeout: float | None = None) -> str:
         raise NotImplementedError
 
 
 class OpenAICompatLLM(LLM):
-    """Any OpenAI-compatible chat endpoint. Reads OPENAI_BASE_URL / OPENAI_API_KEY / OPENAI_MODEL."""
+    """Any OpenAI-compatible chat endpoint. Reads OPENAI_BASE_URL / OPENAI_API_KEY / OPENAI_MODEL.
 
-    def __init__(self, model: str | None = None, timeout: float = 300.0):
+    FORGE_LLM_TIMEOUT_S (300)   longest a single call may take; a call also never outlives `timeout`
+    FORGE_MAX_TOKENS (6000)     reply limit
+    FORGE_THINKING (off)        off = no thinking (vLLM / Qwen chat-template switch); on = server default
+    FORGE_REASONING_EFFORT      passed through as reasoning_effort when set (and thinking is on)
+    FORGE_TEMPERATURE, FORGE_SEED  sampling, for repeatable runs
+    """
+
+    def __init__(self, model: str | None = None, timeout: float | None = None):
         from openai import OpenAI
 
-        self.client = OpenAI(timeout=timeout, max_retries=1)
+        self.timeout = timeout or float(os.environ.get("FORGE_LLM_TIMEOUT_S", "300"))
+        self.client = OpenAI(timeout=self.timeout, max_retries=0)
         self.model = model or os.environ["OPENAI_MODEL"]
-        self.max_tokens = int(os.environ.get("FORGE_MAX_TOKENS", "8000"))
+        self.max_tokens = int(os.environ.get("FORGE_MAX_TOKENS", "6000"))
+        self.extra: dict = {}
+        thinking = os.environ.get("FORGE_THINKING", "off").strip().lower()
+        if thinking in ("off", "0", "false", "no"):
+            self.extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+        elif os.environ.get("FORGE_REASONING_EFFORT", "").strip():
+            self.extra["reasoning_effort"] = os.environ["FORGE_REASONING_EFFORT"].strip()
+        if os.environ.get("FORGE_TEMPERATURE", "").strip():
+            self.extra["temperature"] = float(os.environ["FORGE_TEMPERATURE"])
+        if os.environ.get("FORGE_SEED", "").strip():
+            self.extra["seed"] = int(os.environ["FORGE_SEED"])
+        self.calls = 0
+        self.tokens = 0
 
-    def complete(self, system: str, content: list[dict]) -> str:
+    def complete(self, system: str, content: list[dict], timeout: float | None = None) -> str:
         parts = []
         for block in content:
             if block["type"] == "text":
@@ -57,8 +78,16 @@ class OpenAICompatLLM(LLM):
             model=self.model,
             max_tokens=self.max_tokens,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": parts}],
+            timeout=max(5.0, min(self.timeout, timeout)) if timeout else self.timeout,
+            **self.extra,
         )
-        return reply.choices[0].message.content or ""
+        choice = reply.choices[0]
+        self.calls += 1
+        self.tokens += getattr(reply.usage, "completion_tokens", 0) or 0
+        if choice.finish_reason == "length":
+            print(f"llm: reply cut off at FORGE_MAX_TOKENS={self.max_tokens} "
+                  f"({len(choice.message.content or '')} chars of answer)", file=sys.stderr, flush=True)
+        return choice.message.content or ""
 
 
 class ScriptedLLM(LLM):
@@ -68,6 +97,6 @@ class ScriptedLLM(LLM):
         self.replies = list(replies)
         self.calls: list[tuple[str, list[dict]]] = []
 
-    def complete(self, system: str, content: list[dict]) -> str:
+    def complete(self, system: str, content: list[dict], timeout: float | None = None) -> str:
         self.calls.append((system, content))
         return self.replies[min(len(self.calls) - 1, len(self.replies) - 1)]

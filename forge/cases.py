@@ -26,7 +26,7 @@ def load_tasks(input_dir: str | Path, only: list[str] | None = None) -> list[Tas
     for d in sorted(Path(input_dir).iterdir(), key=_order):
         if not (d / "description.md").is_file():
             continue
-        if only and not any(o in d.name for o in only):
+        if only and not any(d.name == o[:-1] if o.endswith("$") else o in d.name for o in only):
             continue
         facts_file, context, answer = d / "facts.json", d / "context.png", d / "answer.step"
         tasks.append(Task(
@@ -36,6 +36,7 @@ def load_tasks(input_dir: str | Path, only: list[str] | None = None) -> list[Tas
             context=context if context.is_file() else None,
             facts=json.loads(facts_file.read_text()) if facts_file.is_file() else {},
             answer=answer if answer.is_file() else None,
+            dir=d,
         ))
     return tasks
 

@@ -1,0 +1,142 @@
+{
+ "inputs": "bench/cases (silhouettes rendered from answers)",
+ "n_cases": 12,
+ "mean_score": 0.9210803352686346,
+ "mean_box_score": 0.49865542048146777,
+ "mean_self_score": 0.0,
+ "mean_estimate": 0.8238468136213788,
+ "cases": {
+  "01_plate": {
+   "chosen": "hull5",
+   "estimate": 0.9113567277114911,
+   "self_score": 0.0,
+   "score": 0.9978567325959757,
+   "volume": 1.0,
+   "surface": 0.997680073083588,
+   "dimensions": 0.9927635533544968,
+   "holes": 1.0,
+   "box_score": 0.782878744648879
+  },
+  "02_l_bracket": {
+   "chosen": "hull3",
+   "estimate": 0.9118517395850663,
+   "self_score": 0.0,
+   "score": 0.9970865017650897,
+   "volume": 0.9983443708609272,
+   "surface": 0.9954202213891404,
+   "dimensions": 0.9947856204503472,
+   "holes": 1.0,
+   "box_score": 0.18130026655531792
+  },
+  "03_flange": {
+   "chosen": "hull5",
+   "estimate": 0.8768791773148343,
+   "self_score": 0.0,
+   "score": 0.961076660937772,
+   "volume": 0.9166363599628238,
+   "surface": 0.9569144880429044,
+   "dimensions": 0.995057032680268,
+   "holes": 1.0,
+   "box_score": 0.35245184716565203
+  },
+  "04_shaft": {
+   "chosen": "revolve",
+   "estimate": 0.9124652109963843,
+   "self_score": 0.0,
+   "score": 0.9954250651117883,
+   "volume": 0.986822840409956,
+   "surface": 0.9996215753130159,
+   "dimensions": 0.9974587019744833,
+   "holes": 1.0,
+   "box_score": 0.6494775116673195
+  },
+  "05_hex_nut": {
+   "chosen": "hull5",
+   "estimate": 0.9136816862099553,
+   "self_score": 0.0,
+   "score": 0.9960528046608443,
+   "volume": 0.9953485281414047,
+   "surface": 0.9942382536322822,
+   "dimensions": 0.9958838506436914,
+   "holes": 1.0,
+   "box_score": 0.46649133589898595
+  },
+  "06_enclosure": {
+   "chosen": "hull5",
+   "estimate": 0.4307771699217846,
+   "self_score": 0.0,
+   "score": 0.6768492971766815,
+   "volume": 0.1981890389197776,
+   "surface": 0.756649885723686,
+   "dimensions": 0.9519880989182123,
+   "holes": 1.0,
+   "box_score": 0.6820214338278281
+  },
+  "07_u_channel": {
+   "chosen": "hull5",
+   "estimate": 0.9106124924327312,
+   "self_score": 0.0,
+   "score": 0.9981986382945387,
+   "volume": 1.0,
+   "surface": 0.9948607473141013,
+   "dimensions": 0.9987020705015411,
+   "holes": 1.0,
+   "box_score": 0.5468920628176732
+  },
+  "08_elbow": {
+   "chosen": "hull5",
+   "estimate": 0.4117010087895309,
+   "self_score": 0.0,
+   "score": 0.5272357880124416,
+   "volume": 0.43218667607797545,
+   "surface": 0.6850484188515231,
+   "dimensions": 0.9603262976679606,
+   "holes": 0.0,
+   "box_score": 0.2003035477468555
+  },
+  "09_wheel": {
+   "chosen": "hull3",
+   "estimate": 0.9052138503670528,
+   "self_score": 0.0,
+   "score": 0.9788087230176808,
+   "volume": 0.9489017867303972,
+   "surface": 0.9827465249009373,
+   "dimensions": 0.9965711476414025,
+   "holes": 1.0,
+   "box_score": 0.3940042078896078
+  },
+  "10_pillow_block": {
+   "chosen": "hull3",
+   "estimate": 0.9115543287310027,
+   "self_score": 0.0,
+   "score": 0.9970532934803967,
+   "volume": 0.9970809420146448,
+   "surface": 0.9965454033328676,
+   "dimensions": 0.9948269493807151,
+   "holes": 1.0,
+   "box_score": 0.3694921425227904
+  },
+  "11_heat_sink": {
+   "chosen": "hull3",
+   "estimate": 0.9009772421292559,
+   "self_score": 0.0,
+   "score": 0.9838381512590332,
+   "volume": 1.0,
+   "surface": 0.9512440284552737,
+   "dimensions": 0.9923247136122554,
+   "holes": 1.0,
+   "box_score": 0.6966091186497758
+  },
+  "12_loft_adapter": {
+   "chosen": "hull5",
+   "estimate": 0.8890911292674561,
+   "self_score": 0.0,
+   "score": 0.9434823669113734,
+   "volume": 0.9517929671379857,
+   "surface": 0.8945967993801546,
+   "dimensions": 0.9478271847796566,
+   "holes": 1.0,
+   "box_score": 0.6619428263869283
+  }
+ }
+}

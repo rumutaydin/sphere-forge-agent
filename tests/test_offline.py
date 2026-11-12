@@ -71,27 +71,79 @@ def test_self_check_names_what_is_wrong(plate, task, tmp_path):
 
 def test_pipeline_repairs_then_revises(plate, task, tmp_path):
     broken = fenced("import cadquery as cq\nresult = cq.Workplane('XY').box(80,50,8).edges('|Z').fillet(999)")
-    llm = ScriptedLLM(["PLAN", broken, fenced(NO_HOLES), "Holes missing.\n" + fenced(PLATE), "APPROVED"])
-    summary = Agent(llm, get_backend(), n_candidates=1).solve(load_tasks(task)[0], tmp_path)
+    llm = ScriptedLLM([broken, fenced(NO_HOLES), "Holes missing.\n" + fenced(PLATE), "APPROVED"])
+    summary = Agent(llm, get_backend(), n_candidates=1, rounds=2).solve(load_tasks(task)[0], tmp_path)
     log = summary["candidates"][0]["log"]
     assert log[0].startswith("error") and log[-2:] == ["revised", "approved"]
-    assert summary["step"].endswith("test_case_1.step")
     assert score(summary["step"], plate.step_path)["score"] > 0.99
 
 
 def test_worse_revision_is_reverted(task, tmp_path):
-    llm = ScriptedLLM(["PLAN", fenced(PLATE), "I think the holes are wrong.\n" + fenced(NO_HOLES)])
+    llm = ScriptedLLM([fenced(PLATE), "I think the holes are wrong.\n" + fenced(NO_HOLES)])
     summary = Agent(llm, get_backend(), n_candidates=1, rounds=1).solve(load_tasks(task)[0], tmp_path)
     assert summary["candidates"][0]["log"][-1].startswith("revision was worse")
     assert summary["self_check"]["holes"] == 1.0
 
 
-def test_run_writes_stp_and_falls_back_to_box(task, tmp_path):
-    agent = Agent(ScriptedLLM(["PLAN", "no code in this reply"]), get_backend(), n_candidates=1)
+def test_run_writes_stp_and_keeps_the_no_model_part(task, tmp_path):
+    agent = Agent(ScriptedLLM(["no code in this reply"]), get_backend(), n_candidates=1)
     summaries = run_all(task, tmp_path / "out", agent=agent, work_dir=tmp_path / "work")
     assert [p.name for p in (tmp_path / "out").iterdir()] == ["test_case_1.stp"]
-    assert summaries[0]["chosen"] == "fallback box"
+    assert summaries[0]["chosen"] == "box"      # no views in this task, so pass 1 can only offer the box
     assert sorted(load_mesh(tmp_path / "out" / "test_case_1.stp").extents) == pytest.approx([8, 50, 80], abs=0.01)
+
+
+class FailsOnSecondCall(ScriptedLLM):
+    def complete(self, system, content, timeout=None):
+        if len(self.calls) >= 1:
+            self.calls.append((system, content))
+            raise TimeoutError("model call timed out")
+        return super().complete(system, content, timeout)
+
+
+def test_a_failed_call_does_not_lose_the_part(plate, task, tmp_path):
+    """Candidate 0 builds; the next model call raises. The built part must be what is handed in."""
+    llm = FailsOnSecondCall([fenced(PLATE)])
+    out = tmp_path / "out.stp"
+    summary = Agent(llm, get_backend(), n_candidates=1, rounds=1).solve(load_tasks(task)[0], tmp_path / "w", publish=out)
+    assert summary["chosen"] == "model candidate 0" and summary["self_check"]["holes"] == 1.0
+    assert score(out, plate.step_path)["score"] > 0.99        # written when it was built, not at the end
+
+
+def test_past_the_deadline_nothing_is_lost(task, tmp_path):
+    import time
+
+    agent = Agent(ScriptedLLM([fenced(PLATE)]), get_backend(), n_candidates=1)
+    summary = agent.solve(load_tasks(task)[0], tmp_path, deadline=time.monotonic() - 1)
+    assert summary["chosen"] == "fallback box" and summary["step"]
+
+
+def test_no_model_part_from_views_and_facts(plate, tmp_path):
+    """Pass 1 on its own: silhouettes of the plate + its bore list give the plate back, holes and all."""
+    import numpy as np
+    from PIL import Image
+
+    from forge.compile import compile_part
+    from forge.render import VIEWS
+    from forge.vision import Camera, project_mask
+
+    case = tmp_path / "in" / "test_case_1"
+    (case / "images").mkdir(parents=True)
+    mesh = load_mesh(plate.step_path)
+    facts = facts_from_measure(plate.measure)
+    facts["cylindrical_holes_and_bores"] = [{"diameter": 6.0, "axis": "Z", "count": 4, "lengths": [8.0],
+                                             "centres": [[8, 8, 4], [72, 8, 4], [8, 42, 4], [72, 42, 4]]}]
+    for stem in VIEWS:
+        mask = project_mask(mesh, Camera(stem, [80, 50, 8], 512))
+        rgb = np.full(mask.shape + (3,), 255, np.uint8)
+        rgb[mask] = (186, 146, 95)
+        Image.fromarray(rgb).save(case / "images" / f"{stem}.png")
+    (case / "description.md").write_text("A plate.")
+    (case / "facts.json").write_text(json.dumps(facts))
+    out = tmp_path / "part.stp"
+    rows = compile_part(load_tasks(tmp_path / "in")[0], tmp_path / "work", publish=out)
+    assert rows[0]["check"]["holes"] == 1.0 and rows[0]["check"]["dimensions"] > 0.99
+    assert score(out, plate.step_path)["score"] > 0.97
 
 
 def test_select_prefers_best_self_score(plate, task, tmp_path):

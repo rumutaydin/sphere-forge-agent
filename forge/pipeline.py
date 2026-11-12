@@ -1,30 +1,37 @@
 """The orchestrator: wires the stages together and nothing else.
 
-    Task -> plan -> [ build -> repair -> verify ] x N -> select -> <name>.step
+    pass 1 (forge.compile, no model)   silhouette body + bores from the facts -> written at once
+    pass 2 (this file, the model)      [ body program -> finished by code -> repair ] x N -> select
 
-A box of the target's bounding box is the floor: if nothing builds, that is
-what we hand in, because a missing file scores 0 and a box scores about 0.3.
-Stage logic lives in forge/stages/. Keep this file thin.
+The file in the output folder is always the best part known so far: a box first, then the
+no-model part, then any candidate whose estimate is higher. Nothing waits for the end of
+a part, so a timeout or a dead endpoint cannot lose one. Stage logic lives in
+forge/stages/ and forge/compile.py. Keep this file thin.
 """
 from __future__ import annotations
 
 import json
-import shutil
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from .backends import CadBackend
+from .compile import publish_file
 from .llm import LLM
-from .stages.build import generate, run_with_repair
-from .stages.select import select
-from .stages.understand import make_plan, task_content
+from .stages.build import floor_note, generate, run_with_repair
+from .stages.understand import task_content
 from .stages.verify import critique
 from .types import Candidate, Task
 
 
+def score_of(check: dict) -> float:
+    """What candidates are ranked by: the leaderboard estimate when the views allowed one."""
+    return float(check.get("estimate", check.get("self_score", 0.0))) if check else 0.0
+
+
 class Agent:
-    def __init__(self, llm: LLM, backend: CadBackend, n_candidates: int = 3, repairs: int = 3, rounds: int = 2):
+    def __init__(self, llm: LLM, backend: CadBackend, n_candidates: int = 2, repairs: int = 2, rounds: int = 0):
         self.llm, self.backend = llm, backend
         self.n_candidates, self.repairs, self.rounds = n_candidates, repairs, rounds
 
@@ -36,50 +43,65 @@ class Agent:
         res = self.backend.execute(self.backend.box_code(box["x"], box["y"], box["z"]), out_dir / "fallback")
         return res.step_path if res.ok else None
 
-    def solve(self, task: Task, out_dir: Path, deadline: float | None = None) -> dict:
-        """Returns a summary; summary["step"] is the STEP file to hand in (or None)."""
+    def solve(self, task: Task, out_dir: Path, deadline: float | None = None,
+              publish: Path | None = None, floor: dict | None = None) -> dict:
+        """Model pass for one task. `floor` is the best no-model row from forge.compile (or None);
+        `publish` is the output file, overwritten whenever a candidate beats the best so far.
+        Returns a summary; summary["step"] is the best STEP file known (or None)."""
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
-
-        def time_left() -> bool:
-            return deadline is None or time.monotonic() < deadline
-
+        lock = threading.Lock()
+        best = {"score": score_of(floor["check"]) if floor else -1.0, "step": floor["step"] if floor else None,
+                "chosen": floor["name"] if floor else None, "check": floor["check"] if floor else {}, "code": None}
+        hull = out_dir / "pass1" / "hull.step"
+        hull = hull if hull.is_file() else None
         cands: list[Candidate] = []
+        error = None
+
+        def offer(cand: Candidate) -> None:
+            if not cand.usable or (floor and not cand.check):
+                return
+            with lock:
+                if score_of(cand.check) > best["score"] + 1e-9 or best["step"] is None:
+                    best.update(score=score_of(cand.check), step=str(cand.result.step_path),
+                                chosen=f"model candidate {cand.idx}", check=cand.check, code=cand.code)
+                    if publish:
+                        publish_file(cand.result.step_path, publish)
+
+        def work(i: int) -> Candidate:
+            cand = Candidate(i, "", out_dir / f"cand{i}")
+            try:
+                cand.code = generate(self.llm, self.backend, blocks, note, deadline)
+                if cand.code:
+                    run_with_repair(self.llm, self.backend, cand, task, blocks, self.repairs, hull, deadline)
+                    offer(cand)
+                    if self.rounds and (deadline is None or time.monotonic() < deadline - 60):
+                        critique(self.llm, self.backend, cand, task, self.rounds, self.repairs, hull, deadline)
+                        offer(cand)
+                else:
+                    cand.log.append("no program in the reply")
+            except Exception as exc:  # one failed call ends this candidate only
+                cand.log.append(f"failed: {type(exc).__name__}: {exc}")
+            return cand
+
         try:
             blocks = task_content(task)
-            plan = make_plan(self.llm, task)
-            (out_dir / "plan.md").write_text(plan)
-
-            def work(i: int) -> Candidate:
-                cand = Candidate(i, generate(self.llm, self.backend, blocks, plan), out_dir / f"cand{i}")
-                if cand.code:
-                    run_with_repair(self.llm, self.backend, cand, task, blocks, self.repairs if time_left() else 0)
-                    if time_left():
-                        critique(self.llm, self.backend, cand, task, self.rounds, self.repairs)
-                return cand
-
-            with ThreadPoolExecutor(self.n_candidates) as pool:
+            note = floor_note(floor, task.facts)
+            with ThreadPoolExecutor(max(self.n_candidates, 1)) as pool:
                 cands = list(pool.map(work, range(self.n_candidates)))
-            error = None
-        except Exception as exc:  # a dead endpoint must not cost us the fallback
+        except Exception as exc:  # a dead endpoint must not cost us what we already have
             error = f"{type(exc).__name__}: {exc}"
 
-        best = select(cands)
-        final = out_dir / f"{task.name}.step"
-        if best:
-            shutil.copyfile(best.result.step_path, final)
-            (out_dir / "final.py").write_text(best.code)
-        else:
+        if best["step"] is None:
             box = self.fallback(task, out_dir)
-            final = shutil.copyfile(box, final) if box else None
+            best.update(step=str(box) if box else None, chosen="fallback box" if box else None)
+        if best["code"]:
+            (out_dir / "final.py").write_text(best["code"])
         summary = {
-            "task": task.name,
-            "step": str(final) if final else None,
-            "chosen": best.idx if best else "fallback box" if final else None,
-            "self_check": best.check if best else {},
+            "task": task.name, "step": best["step"], "chosen": best["chosen"], "self_check": best["check"],
             "error": error,
             "candidates": [{"idx": c.idx, "usable": c.usable, "approved": c.approved,
-                            "self_score": c.self_score, "log": c.log} for c in cands],
+                            "score": score_of(c.check), "log": c.log} for c in cands],
         }
         (out_dir / "summary.json").write_text(json.dumps(summary, indent=1))
         return summary

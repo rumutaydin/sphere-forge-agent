@@ -7,6 +7,8 @@ self-score does not get worse.
 """
 from __future__ import annotations
 
+import time
+
 from ..backends import CadBackend, describe
 from ..facts import report
 from ..geometry import load_mesh
@@ -40,7 +42,12 @@ READY-MADE HELPERS:
 {catalogue}"""
 
 
-def critique(llm: LLM, backend: CadBackend, cand: Candidate, task: Task, rounds: int = 2, repairs: int = 3) -> None:
+def _rank(check: dict) -> float:
+    return float(check.get("estimate", check.get("self_score", 0.0))) if check else 0.0
+
+
+def critique(llm: LLM, backend: CadBackend, cand: Candidate, task: Task, rounds: int = 2, repairs: int = 3,
+             hull=None, deadline: float | None = None) -> None:
     text_only = task_content(task, with_views=False)
     target_sheet = None
     if task.views:
@@ -51,13 +58,17 @@ def critique(llm: LLM, backend: CadBackend, cand: Candidate, task: Task, rounds:
             return
         built_sheet = render_sheet(load_mesh(cand.result.step_path), cand.result.step_path.with_name("views.png"))
         ask = text_only + [text_block(
-            f"CURRENT PROGRAM:\n```{backend.language}\n{cand.code}\n```\n\n"
+            f"CURRENT PROGRAM (the body; bores from the facts and the silhouette trim are applied after it):\n"
+            f"```{backend.language}\n{cand.code}\n```\n\n"
             f"NUMERIC CHECK AGAINST FACTS:\n{report(cand.check) if cand.check else '(no facts for this task)'}\n\n"
             f"KERNEL MEASUREMENTS:\n{describe(cand.result.measure)}")]
         if target_sheet:
             ask += [text_block("TARGET VIEWS:"), image_block(target_sheet, max_side=1536)]
         ask += [text_block("BUILT VIEWS:"), image_block(built_sheet, max_side=1536)]
-        reply = llm.complete(system_prompt(CRITIC_SYSTEM, backend), ask)
+        left = None if deadline is None else deadline - time.monotonic()
+        if left is not None and left < 60:
+            return
+        reply = llm.complete(system_prompt(CRITIC_SYSTEM, backend), ask, timeout=left)
         new_code = extract_code(reply)
         if reply.strip().upper().startswith("APPROVED") or not new_code:
             cand.approved = True
@@ -65,8 +76,8 @@ def critique(llm: LLM, backend: CadBackend, cand: Candidate, task: Task, rounds:
             return
         previous = (cand.code, cand.result, cand.check)
         cand.code = new_code
-        run_with_repair(llm, backend, cand, task, text_only, repairs)
-        if not cand.usable or (previous[2] and cand.self_score < previous[2]["self_score"] - 1e-6):
+        run_with_repair(llm, backend, cand, task, text_only, repairs, hull, deadline)
+        if not cand.usable or (previous[2] and _rank(cand.check) < _rank(previous[2]) - 1e-6):
             cand.code, cand.result, cand.check = previous
             cand.log.append("revision was worse or failed, reverted")
             return

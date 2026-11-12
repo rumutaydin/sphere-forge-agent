@@ -20,6 +20,7 @@ class Task:
     context: Path | None = None                 # part highlighted in its assembly; often absent
     facts: dict = field(default_factory=dict)   # facts.json: bbox, volume, area, hole inventory
     answer: Path | None = None                  # target STEP; only our own reference cases have one
+    dir: Path | None = None                     # the task's input folder (description.md, facts.json, images/)
 
 
 @dataclass

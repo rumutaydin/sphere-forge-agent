@@ -64,38 +64,47 @@ def main() -> None:
 
         root = Path(args.out or f"runs/eval-{time.strftime('%m%d-%H%M%S')}")
         tasks = {t.name: t for t in load_tasks(args.inputs, args.only)}
+        t_start = time.time()
         summaries = run_all(Path(args.inputs), root / "outputs", only=args.only, work_dir=root / "work")
         rows = {}
         for s in summaries:
             task = tasks[s["task"]]
-            row = {"self_score": s["self_check"].get("self_score", 0.0), "chosen": s["chosen"]}
+            chk = s["self_check"]
+            row = {"self_score": chk.get("self_score", 0.0), "chosen": s["chosen"],
+                   "estimate": chk.get("estimate", 0.0), "dimensions": chk.get("dimensions"), "holes": chk.get("holes"),
+                   "volume_ratio": chk.get("volume_ratio"), "area_ratio": chk.get("area_ratio"),
+                   "silhouette_iou": chk.get("silhouette_iou"),
+                   "candidates": [(c["usable"], round(c["score"], 3)) for c in s.get("candidates", [])]}
             # A task with no part scores zero. Dropping failures would flatter the average.
             if task.answer:
                 row.update(score(s["step"], task.answer) if s["step"] else {"score": 0.0, **dict.fromkeys(PARTS, 0.0)})
             rows[task.name] = row
-            print(f"{task.name:20s} self {row['self_score']:.3f}"
+            print(f"{task.name:20s} est {row['estimate']:.3f}  self {row['self_score']:.3f}  {row['chosen']}"
                   + (f"   score {row['score']:.3f}" if "score" in row else ""), flush=True)
         n = max(len(rows), 1)
         scored = [r for r in rows.values() if "score" in r]
         result = {
             "inputs": args.inputs, "n_cases": len(rows),
             "mean_self_score": sum(r["self_score"] for r in rows.values()) / n,
+            "mean_estimate": sum(r["estimate"] for r in rows.values()) / n,
+            "wall_clock_s": round(time.time() - t_start),
             "mean_score": sum(r["score"] for r in scored) / len(scored) if scored else None,
             "cases": rows,
         }
-        print(f"MEAN self {result['mean_self_score']:.3f}"
+        print(f"MEAN estimate {result['mean_estimate']:.3f}  self {result['mean_self_score']:.3f}  wall {result['wall_clock_s']}s"
               + (f"   score {result['mean_score']:.3f}" if scored else "   (no answer files: self-score only)"))
         (root / "scores.json").write_text(json.dumps(result, indent=1))
         if args.tag:
             RESULTS.mkdir(exist_ok=True)
             (RESULTS / f"{time.strftime('%m%d-%H%M')}-{args.tag}.json").write_text(json.dumps(result, indent=1))
     elif args.cmd == "board":
-        print(f"{'run':40s}{'cases':>6s}{'self':>8s}{'score':>8s}{'leaderboard':>13s}")
+        print(f"{'run':44s}{'cases':>6s}{'est':>8s}{'self':>8s}{'score':>8s}{'leaderboard':>13s}")
         for f in sorted(RESULTS.glob("*.json")):
             r = json.loads(f.read_text())
             score_txt = f"{r['mean_score']:8.3f}" if r.get("mean_score") is not None else f"{'-':>8s}"
             lb = r.get("leaderboard")
-            print(f"{f.stem:40s}{r.get('n_cases', 0):6d}{r.get('mean_self_score', 0):8.3f}{score_txt}"
+            est = f"{r['mean_estimate']:8.3f}" if r.get("mean_estimate") is not None else f"{'-':>8s}"
+            print(f"{f.stem:44s}{r.get('n_cases', 0):6d}{est}{r.get('mean_self_score', 0):8.3f}{score_txt}"
                   + (f"{lb:13.3f}" if lb is not None else f"{'-':>13s}"))
 
 

@@ -23,7 +23,7 @@ class CadBackend:
     language: str = "python"        # fence label the model should use
     guide: str = ""                 # API cheat sheet + conventions, goes in the system prompt
 
-    def execute(self, code: str, out_dir: Path, timeout: float = 90) -> ExecResult:
+    def execute(self, code: str, out_dir: Path, timeout: float = 90, env: dict | None = None) -> ExecResult:
         raise NotImplementedError
 
     def box_code(self, x: float, y: float, z: float) -> str:

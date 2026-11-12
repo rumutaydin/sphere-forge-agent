@@ -204,7 +204,7 @@ def cut_bores(body, segs: list[dict], modes: list[str], size):
     return cq.Workplane("XY").newObject([_largest_solid(shape)])
 
 
-def cut_holes_to_genus(body, task, rounds: int = 6, log=None):
+def cut_holes_to_genus(body, task, rounds: int = 6, log=None, t_end: float | None = None):
     """Cut the listed bores so that the through-hole count equals facts["through_holes_genus"].
 
     A silhouette body is too thick wherever the true part has a pocket, so a bore of the listed
@@ -236,7 +236,23 @@ def cut_holes_to_genus(body, task, rounds: int = 6, log=None):
     g = measure(shape)
     modes = ["skip"] * len(segs)
     order = sorted(range(len(segs)), key=lambda i: (not segs[i]["visible"], -segs[i]["radius"]))
+    import time
+
+    def late():
+        return t_end is not None and time.monotonic() > t_end
+
     for i in order:
+        if late():      # out of time: the remaining bores go in as listed, in one cut
+            try:
+                new = _largest_solid(shape.cut(*[tool(j, "listed") for j in order[order.index(i):]]))
+                g2 = measure(new)
+                if g2 >= 0:
+                    shape, g = new, g2
+                    for j in order[order.index(i):]:
+                        modes[j] = "listed"
+            except Exception:
+                pass
+            break
         for mode in (("through",) if segs[i]["visible"] else ("open", "listed")):
             try:
                 new = _largest_solid(shape.cut(tool(i, mode)))
@@ -248,7 +264,7 @@ def cut_holes_to_genus(body, task, rounds: int = 6, log=None):
                 break
     # Still short: drill more bores fully through, those that best close the volume gap first.
     for _ in range(rounds):
-        if g >= target:
+        if g >= target or late():
             break
         spare = shape.Volume() - vol_target
 
@@ -492,9 +508,12 @@ def measure_body(body, task) -> dict | None:
         return None
     mesh = shape_to_mesh(shape)
     info["genus"] = genus(mesh)
+    info["bbox_size"] = [float(e) for e in mesh.extents]    # the kernel's own box can be loose on curved faces
     check = self_check(info, task.facts)
     shape_s = shape_score(mesh, task) if task.views else {"mean": 0.0, "iou_per_view": {}}
-    return {"measure": info, "check": check, "shape": shape_s, "estimate": estimate(check, shape_s)}
+    check["silhouette_iou"] = shape_s.get("mean", 0.0)
+    check["estimate"] = estimate(check, shape_s)
+    return {"measure": info, "check": check, "shape": shape_s, "estimate": check["estimate"]}
 
 
 def estimate(check: dict, shape_s: dict) -> float:
@@ -505,14 +524,34 @@ def estimate(check: dict, shape_s: dict) -> float:
     return 0.139 + 0.16 * check["holes"] + 0.62 * vol * shape_s.get("mean", 0.0) - 0.5 * (1 - check["dimensions"])
 
 
-def compile_part(task, out_dir: str | Path, sources=None) -> list[dict]:
-    """Build every source with the facts' bores (both hole variants), measure, write STEP files.
-    Returns rows sorted best first: {"name", "step", "estimate", "check", "shape"}."""
+def publish_file(src: str | Path, dst: str | Path) -> None:
+    """Copy `src` over `dst` so that a reader never sees a half-written file."""
+    import os
+    import shutil
+
+    dst = Path(dst)
+    tmp = dst.with_name(dst.name + ".tmp")
+    shutil.copyfile(src, tmp)
+    os.replace(tmp, dst)
+
+
+def compile_part(task, out_dir: str | Path, sources=None, publish: str | Path | None = None,
+                 budget_s: float | None = None) -> list[dict]:
+    """Build every source with the facts' bores, measure, write STEP files.
+
+    Returns rows sorted best first: {"name", "step", "estimate", "check", "shape"}. Whenever a
+    row beats the best so far its STEP is copied to `publish` at once, and compile.json is
+    rewritten, so stopping this function at any moment loses nothing. `hull.step` (the best
+    silhouette body before any bore) is left in out_dir for the model stage.
+    """
+    import time
+
     import cadquery as cq
 
+    t_end = time.monotonic() + budget_s if budget_s else None
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    rows = []
+    rows: list[dict] = []
     has_holes = bool(task.facts.get("cylindrical_holes_and_bores"))
 
     def add(label, part, note=None):
@@ -525,12 +564,17 @@ def compile_part(task, out_dir: str | Path, sources=None) -> list[dict]:
             return None
         step = out_dir / f"{label}.step"
         cq.exporters.export(part.val(), str(step))
-        rows.append({"name": label, "step": str(step), "estimate": m["estimate"], "check": m["check"],
-                     "shape": m["shape"], "volume": m["measure"]["volume"], "note": note})
-        return rows[-1]
+        row = {"name": label, "step": str(step), "estimate": m["estimate"], "check": m["check"],
+               "shape": m["shape"], "volume": m["measure"]["volume"], "note": note}
+        if publish and all(row["estimate"] > r["estimate"] for r in rows):
+            publish_file(step, publish)
+        rows.append(row)
+        (out_dir / "compile.json").write_text(json.dumps(sorted(rows, key=lambda r: -r["estimate"]), indent=1))
+        return row
 
-    bodies = sources if sources is not None else body_sources(task)
-    for name, body in bodies:
+    bodies = []
+    for name, body in (sources if sources is not None else body_sources(task)):
+        bodies.append((name, body))
         if not has_holes:
             add(name, body)
             continue
@@ -538,18 +582,54 @@ def compile_part(task, out_dir: str | Path, sources=None) -> list[dict]:
             add(f"{name}+holes", cut_facts_holes(body, task.facts, extend=True))
         except Exception as exc:
             print(f"{task.name}: {name}+holes failed: {type(exc).__name__}: {exc}", flush=True)
+    # the best silhouette body, without bores: the model stage starts from it and trims with it
+    silhouette = [r for r in sorted(rows, key=lambda r: -r["estimate"]) if not r["name"].startswith("box")]
+    if silhouette:
+        cq.exporters.export(dict(bodies)[silhouette[0]["name"].split("+")[0]].val(), str(out_dir / "hull.step"))
     if has_holes and rows:
-        # the hole-count search costs several kernel runs: only on the best body, and on a revolve
+        # the hole-count search costs many kernel runs: only on the best body, and on a revolve
         ranked = sorted(rows, key=lambda r: -r["estimate"])
         todo = [ranked[0]["name"].split("+")[0]] + [n for n, _ in bodies if n == "revolve"]
         for name in dict.fromkeys(todo):
-            body = dict(bodies)[name]
             log: list[str] = []
             try:
-                part, modes, g = cut_holes_to_genus(body, task, log=log)
+                part, _, _ = cut_holes_to_genus(dict(bodies)[name], task, log=log, t_end=t_end)
                 add(f"{name}+holes-fit", part, note=log)
             except Exception as exc:
                 print(f"{task.name}: {name}+holes-fit failed: {type(exc).__name__}: {exc}", flush=True)
     rows.sort(key=lambda r: -r["estimate"])
     (out_dir / "compile.json").write_text(json.dumps(rows, indent=1))
     return rows
+
+
+def finish_body(result, facts_path: str, hull: str | None = None, holes: str = "open"):
+    """Called at the end of a model-written body program. Moves the body so its bounding-box
+    minimum corner is at the origin (the facts frame), trims it with the silhouette body
+    (the true part lies inside it, so anything outside is wrong), and cuts the facts' bores."""
+    import cadquery as cq
+
+    facts = json.loads(Path(facts_path).read_text())
+    shape = result.val() if isinstance(result, cq.Workplane) else result
+    if isinstance(shape, cq.Compound) and len(shape.Solids()) == 1:
+        shape = shape.Solids()[0]
+    bb = shape.BoundingBox()
+    shape = shape.translate(cq.Vector(-bb.xmin, -bb.ymin, -bb.zmin))
+    if hull and Path(hull).is_file():
+        trimmed = _largest_solid(shape.intersect(cq.importers.importStep(hull).val()))
+        if trimmed.isValid() and trimmed.Volume() > 0.5 * shape.Volume():
+            shape = trimmed
+    if holes != "none":
+        shape = cut_facts_holes(shape, facts, extend=(holes == "open")).val()
+    return cq.Workplane("XY").newObject([shape])
+
+
+if __name__ == "__main__":
+    # python -m forge.compile <task_dir> <out_dir> [publish_path] [budget_s]   (run as a subprocess with a timeout)
+    import sys
+
+    from .cases import load_tasks
+
+    task_dir = Path(sys.argv[1])
+    task = load_tasks(task_dir.parent, [task_dir.name + "$"])[0]
+    compile_part(task, sys.argv[2], publish=sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None,
+                 budget_s=float(sys.argv[4]) if len(sys.argv) > 4 else None)

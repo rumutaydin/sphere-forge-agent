@@ -5,6 +5,7 @@ Writes part.step and measure.json into out_dir. Exit code 0 on success;
 on failure the traceback goes to stderr.
 """
 import json
+import os
 import sys
 import traceback
 from pathlib import Path
@@ -89,7 +90,22 @@ def main() -> int:
         cq.exporters.export(shape, str(out_dir / "part.step"))
         from forge.geometry import genus, shape_to_mesh
 
-        info["genus"] = genus(shape_to_mesh(shape))  # through-hole count, as the scorer counts it
+        mesh = shape_to_mesh(shape)
+        info["genus"] = genus(mesh)  # through-hole count, as the scorer counts it
+        info["bbox_size"] = [float(e) for e in mesh.extents]   # the kernel's own box can be loose on curved faces
+        task_dir = os.environ.get("FORGE_TASK_DIR")
+        if task_dir and info["valid"] and info["solids"] == 1:
+            # score against the task's facts and views here, in the subprocess
+            from forge.cases import load_tasks
+            from forge.compile import estimate
+            from forge.facts import self_check
+            from forge.vision import shape_score
+
+            task = load_tasks(Path(task_dir).parent, [Path(task_dir).name + "$"])[0]
+            info["check"] = self_check(info, task.facts)
+            info["shape"] = shape_score(mesh, task) if task.views else {"mean": 0.0, "iou_per_view": {}}
+            info["check"]["silhouette_iou"] = info["shape"]["mean"]
+            info["check"]["estimate"] = estimate(info["check"], info["shape"])
         (out_dir / "measure.json").write_text(json.dumps(info))
         return 0
     except Exception:
