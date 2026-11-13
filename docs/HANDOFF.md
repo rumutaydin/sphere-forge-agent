@@ -15,6 +15,48 @@ set is about 0.8, against 0.658 submitted yesterday and 0.320 for boxes. The est
 give the real values. What remains hard is material hidden from every outline: hollow interiors, fins,
 sloped pockets (parts 6 and 7).
 
+## Freeze state, 13 Nov 05:45 (read this first)
+
+**What `main` will hold once Robin pushes:** branch `a/v6` merged into `main` (merge made
+locally, not pushed). It contains everything teammates pushed to `origin/main` up to
+`b274d27` (star step for V-grooved parts in `forge/compile.py`, approaches 20-qwen-residuals,
+21-qwen-profile-hints, 22-star-27b, the fine-tuned 27B submission), merged into `a/v6` first.
+`artifacts/outputs` = approach `20-v6-exact` (`runs/v6-full2`: exact programs on, brief facts,
+27B; local estimate 0.812 against real facts; no leaderboard value yet). These files were made
+before the star step was merged and with `FORGE_EXACT=2`, so a re-run of the image will not
+reproduce them byte for byte.
+
+**Config (Dockerfile line):** `FORGE_THINKING=off FORGE_CANDIDATES=3 FORGE_EXACT=0 FORGE_CARVE=0
+FORGE_MODEL_MARGIN=0.02 FORGE_EDGE_VETO=0.015 FORGE_SHELL_VOL=99 FORGE_WORKERS=9 FORGE_BUDGET_S=3000`.
+Model bodies on, thinking off, three candidates; the exact path is off (it won one tie and took
+the run to 49 min). `FORGE_IGNORE_FACTS` is unset: `facts.json` is used where it exists.
+
+**Hidden-set fix:** the hidden parts come without `facts.json`. `main` before this merge wrote
+nothing for them; now `forge/brief.py` builds the facts from the brief (next section). Checked in
+the image as the non-root user with every `facts.json` deleted: nine valid STEP files with and
+without a model (numbers in `docs/tracks/A-ship.md`, lab note 13 Nov 05:45). A dead endpoint is
+waited for up to `FORGE_ENDPOINT_WAIT_S` (300 s) before the model pass, each call retries for up to
+`FORGE_LLM_RETRY_S` (180 s), and `FORGE_BUDGET_S` (3000 s) caps the whole run.
+
+**What the human must do for judging (the organisers run our image against our endpoint):**
+1. Start the Brev instance and keep it **running through judging**; do not stop it after the
+   handover. Check `curl -sf localhost:8000/health` on it.
+2. Expose port 8000 publicly in the Brev console (Access → HTTP Ports → add 8000 → Share → public).
+3. Put that **public URL** (`https://.../v1`) in `team-g.env` and in the handover to the organisers.
+   **Not a tunnel address**: brev's ssh config has `ControlMaster auto` / `ControlPersist 10m`, so an
+   `ssh -L` forward rides on the mux master and dies 10 min after the last ssh (that killed the
+   03:37 run). Test from a machine that is not on any tunnel:
+   `curl -s -H "Authorization: Bearer $OPENAI_API_KEY" $OPENAI_BASE_URL/models`.
+4. `OPENAI_MODEL` in the handover must be the name vLLM serves (27B: `Qwen/Qwen3.8-27B`; the
+   fine-tuned teammate model is served as `forge-ft`).
+
+**Credit:** about $25 was left at 22:30 on 12 Nov; the v6 sessions since then cost about $1.77
+and $4.76, so roughly $18 remain if nobody else used the account (teammates' fine-tuning and
+`forge-ft` serving may have; check the Brev console), i.e. under 4 hours at $4.84/h. If judging runs later
+than that or the instance is left up from now, it runs out; an empty endpoint means every hidden
+part falls back to the no-model hull (that path works, checked above). Top up or start the
+instance as late as the organisers allow.
+
 ## Hidden parts have no facts.json (12 Nov, night; branch `a/facts-from-brief`, not merged)
 
 The README of the organisers' extended practice set says the hidden parts give only `images/`,
