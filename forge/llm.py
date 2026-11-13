@@ -12,6 +12,8 @@ import base64
 import io
 import os
 import sys
+import threading
+import time
 from pathlib import Path
 
 from PIL import Image
@@ -31,6 +33,13 @@ def image_block(path: str | Path, max_side: int = 768) -> dict:
     return {"type": "image", "data": base64.standard_b64encode(buf.getvalue()).decode("utf-8")}
 
 
+# Hosted APIs cap requests in flight (Ollama Cloud pay-as-you-go: 3); above the cap they answer 429.
+# All candidates of all parts share one client-side limit, so calls queue here instead of failing.
+_LIMIT = int(os.environ.get("FORGE_LLM_CONCURRENCY", "0") or 0)
+_SLOTS = threading.BoundedSemaphore(_LIMIT) if _LIMIT > 0 else None
+_RATE_RETRIES = int(os.environ.get("FORGE_LLM_429_RETRIES", "4"))
+
+
 class LLM:
     def complete(self, system: str, content: list[dict], timeout: float | None = None) -> str:
         raise NotImplementedError
@@ -44,6 +53,8 @@ class OpenAICompatLLM(LLM):
     FORGE_THINKING (off)        off = no thinking (vLLM / Qwen chat-template switch); on = server default
     FORGE_REASONING_EFFORT      passed through as reasoning_effort when set (and thinking is on)
     FORGE_TEMPERATURE, FORGE_SEED  sampling, for repeatable runs
+    FORGE_LLM_CONCURRENCY (0)   most calls in flight at once, shared by all threads; 0 = no limit
+    FORGE_LLM_429_RETRIES (4)   a rate-limited call waits (5, 10, 20, 40 s) and retries, within `timeout`
     """
 
     def __init__(self, model: str | None = None, timeout: float | None = None):
@@ -74,13 +85,34 @@ class OpenAICompatLLM(LLM):
             else:
                 parts.append({"type": "image_url",
                               "image_url": {"url": "data:image/png;base64," + block["data"]}})
-        reply = self.client.chat.completions.create(
-            model=self.model,
-            max_tokens=self.max_tokens,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": parts}],
-            timeout=max(5.0, min(self.timeout, timeout)) if timeout else self.timeout,
-            **self.extra,
-        )
+        from openai import RateLimitError
+
+        end = time.monotonic() + max(5.0, timeout) if timeout else None   # the caller's deadline
+        if _SLOTS is not None and not _SLOTS.acquire(timeout=None if end is None else max(end - time.monotonic(), 0.0)):
+            raise TimeoutError("no free model slot before the deadline")
+        try:
+            for attempt in range(_RATE_RETRIES + 1):
+                left = self.timeout if end is None else min(self.timeout, end - time.monotonic())
+                if left < 5.0:
+                    raise TimeoutError("no time left for the model call")
+                try:
+                    reply = self.client.chat.completions.create(
+                        model=self.model,
+                        max_tokens=self.max_tokens,
+                        messages=[{"role": "system", "content": system}, {"role": "user", "content": parts}],
+                        timeout=left,
+                        **self.extra,
+                    )
+                    break
+                except RateLimitError:
+                    wait = 5.0 * 2 ** attempt
+                    if attempt == _RATE_RETRIES or (end is not None and time.monotonic() + wait + 5.0 > end):
+                        raise
+                    print(f"llm: rate-limited, retry in {wait:.0f}s", file=sys.stderr, flush=True)
+                    time.sleep(wait)
+        finally:
+            if _SLOTS is not None:
+                _SLOTS.release()
         choice = reply.choices[0]
         self.calls += 1
         self.tokens += getattr(reply.usage, "completion_tokens", 0) or 0
