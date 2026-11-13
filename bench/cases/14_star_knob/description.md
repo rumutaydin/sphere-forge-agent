@@ -1,0 +1,1 @@
+A solid star knob with a 12-point star cross-section. The frustum has tip radius 30 mm at z=0 and 20 mm at z=40, with groove bottoms at 70% of the tip radius. One tip points along +Y. On top is a solid round cap of 36 mm diameter from z=40 to z=48. The part is fully solid with no cavity. A through hole of 8 mm diameter runs along the Z axis.

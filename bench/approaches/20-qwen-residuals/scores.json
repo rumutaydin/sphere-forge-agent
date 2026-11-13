@@ -1,0 +1,100 @@
+{
+ "what": "shell fit + surface-aware ranking + loft/star/shell helpers + numeric residual repairs (4); Qwen3.8-27B-FP8 local vLLM; one run, 2941 s",
+ "n_cases": 9,
+ "leaderboard": null,
+ "mean_estimate": 0.8154,
+ "holes_right": 9,
+ "cases": {
+  "test_case_1": {
+   "valid": true,
+   "estimate": 0.9144,
+   "self_score": 0.9994,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.999,
+   "area_ratio": 1.001,
+   "silhouette_iou": 0.9938
+  },
+  "test_case_2": {
+   "valid": true,
+   "estimate": 0.8636,
+   "self_score": 0.9743,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.086,
+   "area_ratio": 0.993,
+   "silhouette_iou": 0.9886
+  },
+  "test_case_3": {
+   "valid": true,
+   "estimate": 0.9153,
+   "self_score": 0.998,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.996,
+   "area_ratio": 0.997,
+   "silhouette_iou": 0.9981
+  },
+  "test_case_4": {
+   "valid": true,
+   "estimate": 0.8808,
+   "self_score": 0.9849,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.045,
+   "area_ratio": 1.007,
+   "silhouette_iou": 0.9808
+  },
+  "test_case_5": {
+   "valid": true,
+   "estimate": 0.8462,
+   "self_score": 0.9467,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.126,
+   "area_ratio": 0.934,
+   "silhouette_iou": 0.9936
+  },
+  "test_case_6": {
+   "valid": true,
+   "estimate": 0.5889,
+   "self_score": 0.7123,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.78,
+   "area_ratio": 0.479,
+   "silhouette_iou": 0.8323
+  },
+  "test_case_7": {
+   "valid": true,
+   "estimate": 0.6584,
+   "self_score": 0.8666,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.703,
+   "area_ratio": 0.968,
+   "silhouette_iou": 0.987
+  },
+  "test_case_8": {
+   "valid": true,
+   "estimate": 0.8702,
+   "self_score": 0.9623,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.073,
+   "area_ratio": 0.942,
+   "silhouette_iou": 0.9881
+  },
+  "test_case_9": {
+   "valid": true,
+   "estimate": 0.8008,
+   "self_score": 0.8605,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.231,
+   "area_ratio": 0.722,
+   "silhouette_iou": 0.9961
+  }
+ },
+ "settings": "FORGE_THINKING=off FORGE_CANDIDATES=3 FORGE_REPAIRS=4 FORGE_CARVE=0 FORGE_MODEL_MARGIN=0.02 FORGE_EDGE_VETO=0.015 FORGE_WORKERS=5 FORGE_BUDGET_S=3000 FORGE_LLM_TIMEOUT_S=600"
+}

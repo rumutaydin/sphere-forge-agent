@@ -50,7 +50,10 @@ def task_content(task: Task, with_views: bool = True) -> list[dict]:
     """The task as model input blocks. Every stage shows the model this."""
     content = [text_block("DESIGN BRIEF:\n" + task.description.strip())]
     if task.facts:
-        content.append(text_block("FACTS (measured from the target part):\n" + json.dumps(task.facts, indent=1)))
+        label = "FACTS (read from the brief by a parser; bores it could not place are missing)" \
+            if task.facts.get("_source") == "brief" else "FACTS (measured from the target part)"
+        shown = {k: v for k, v in task.facts.items() if k != "_dir"}
+        content.append(text_block(label + ":\n" + json.dumps(shown, indent=1)))
     if with_views:
         for view in task.views:
             content.append(text_block("VIEW " + VIEW_NOTES.get(view.stem, view.stem) + ":"))

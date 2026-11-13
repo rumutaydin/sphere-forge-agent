@@ -1,0 +1,319 @@
+{
+ "inputs": "artifacts/inputs",
+ "n_cases": 9,
+ "mean_self_score": 0.9508422006855825,
+ "mean_estimate": 0.8117781894738468,
+ "wall_clock_s": 2941,
+ "mean_score": null,
+ "cases": {
+  "test_case_1": {
+   "self_score": 0.9997053526472202,
+   "chosen": "exact program 1",
+   "source": "exact",
+   "would_choose": {
+    "strict": "exact program 1",
+    "relaxed": "exact program 1"
+   },
+   "estimate": 0.9139447931100336,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.9990178421574009,
+   "area_ratio": 1.0,
+   "silhouette_iou": 0.992821547969694,
+   "candidates": [
+    [
+     true,
+     0.866
+    ],
+    [
+     true,
+     0.914
+    ]
+   ]
+  },
+  "test_case_2": {
+   "self_score": 0.9763930673990897,
+   "chosen": "revolve",
+   "source": "hull",
+   "would_choose": {
+    "strict": "revolve",
+    "relaxed": "revolve"
+   },
+   "estimate": 0.862965247933809,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.085410726191709,
+   "area_ratio": 1.0,
+   "silhouette_iou": 0.9873127892043917,
+   "candidates": [
+    [
+     true,
+     0.898
+    ],
+    [
+     false,
+     0.0
+    ],
+    [
+     true,
+     0.865
+    ],
+    [
+     true,
+     0.875
+    ],
+    [
+     true,
+     0.578
+    ]
+   ]
+  },
+  "test_case_3": {
+   "self_score": 0.9987708707028613,
+   "chosen": "revolve+holes",
+   "source": "hull",
+   "would_choose": {
+    "strict": "revolve+holes",
+    "relaxed": "revolve+holes"
+   },
+   "estimate": 0.915277536216693,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.9959029023428713,
+   "area_ratio": 1.0,
+   "silhouette_iou": 0.9980852790142203,
+   "candidates": [
+    [
+     true,
+     0.916
+    ],
+    [
+     true,
+     0.916
+    ]
+   ]
+  },
+  "test_case_4": {
+   "self_score": 0.9876174917767198,
+   "chosen": "model body 2",
+   "source": "body",
+   "would_choose": {
+    "strict": "model body 2",
+    "relaxed": "model body 2"
+   },
+   "estimate": 0.880921481802512,
+   "dimensions": 0.9999621985796637,
+   "holes": 1.0,
+   "volume_ratio": 1.043024583048481,
+   "area_ratio": 1.0,
+   "silhouette_iou": 0.9789969755312284,
+   "candidates": [
+    [
+     true,
+     0.623
+    ],
+    [
+     true,
+     0.881
+    ],
+    [
+     true,
+     0.881
+    ],
+    [
+     true,
+     0.521
+    ],
+    [
+     true,
+     0.68
+    ]
+   ]
+  },
+  "test_case_5": {
+   "self_score": 0.9611656911810977,
+   "chosen": "hull-pockets+holes-fit",
+   "source": "hull",
+   "would_choose": {
+    "strict": "hull-pockets+holes-fit",
+    "relaxed": "hull-pockets+holes-fit"
+   },
+   "estimate": 0.8347278763765329,
+   "dimensions": 0.9999999999999974,
+   "holes": 1.0,
+   "volume_ratio": 1.148696058212229,
+   "area_ratio": 1.0,
+   "silhouette_iou": 0.992562096561505,
+   "candidates": [
+    [
+     true,
+     0.616
+    ],
+    [
+     true,
+     0.194
+    ],
+    [
+     true,
+     0.709
+    ],
+    [
+     false,
+     0.0
+    ],
+    [
+     true,
+     0.828
+    ]
+   ]
+  },
+  "test_case_6": {
+   "self_score": 0.8567524077645456,
+   "chosen": "model body 2",
+   "source": "body",
+   "would_choose": {
+    "strict": "model body 2",
+    "relaxed": "model body 2"
+   },
+   "estimate": 0.5940347628630196,
+   "dimensions": 0.998446071020767,
+   "holes": 1.0,
+   "volume_ratio": 1.9100592137434629,
+   "area_ratio": 1.0,
+   "silhouette_iou": 0.9113192183278576,
+   "candidates": [
+    [
+     true,
+     0.522
+    ],
+    [
+     true,
+     0.509
+    ],
+    [
+     true,
+     0.594
+    ],
+    [
+     true,
+     0.529
+    ],
+    [
+     true,
+     0.595
+    ]
+   ]
+  },
+  "test_case_7": {
+   "self_score": 0.8519263086763476,
+   "chosen": "hull-pockets+holes-fit",
+   "source": "hull",
+   "would_choose": {
+    "strict": "hull-pockets+holes-fit",
+    "relaxed": "hull-pockets+holes-fit"
+   },
+   "estimate": 0.6332417820853702,
+   "dimensions": 0.9999999999999997,
+   "holes": 0.9,
+   "volume_ratio": 1.7449336422661879,
+   "area_ratio": 1.0,
+   "silhouette_iou": 0.9857236588516545,
+   "candidates": [
+    [
+     true,
+     0.435
+    ],
+    [
+     true,
+     0.472
+    ],
+    [
+     true,
+     0.262
+    ],
+    [
+     true,
+     0.341
+    ],
+    [
+     true,
+     0.133
+    ]
+   ]
+  },
+  "test_case_8": {
+   "self_score": 0.9814717490854952,
+   "chosen": "hull3+holes-fit",
+   "source": "hull",
+   "would_choose": {
+    "strict": "hull3+holes-fit",
+    "relaxed": "hull3+holes-fit"
+   },
+   "estimate": 0.8703700196757832,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.0658263252873623,
+   "area_ratio": 1.0,
+   "silhouette_iou": 0.9822277555651739,
+   "candidates": [
+    [
+     true,
+     0.514
+    ],
+    [
+     true,
+     0.498
+    ],
+    [
+     true,
+     0.485
+    ],
+    [
+     true,
+     0.287
+    ],
+    [
+     true,
+     -0.053
+    ]
+   ]
+  },
+  "test_case_9": {
+   "self_score": 0.9437768669368647,
+   "chosen": "hull-faces+holes",
+   "source": "hull",
+   "would_choose": {
+    "strict": "hull-faces+holes",
+    "relaxed": "hull-faces+holes"
+   },
+   "estimate": 0.8005202052008678,
+   "dimensions": 0.999999999999999,
+   "holes": 1.0,
+   "volume_ratio": 1.2306335862364508,
+   "area_ratio": 1.0,
+   "silhouette_iou": 0.9954638849941696,
+   "candidates": [
+    [
+     true,
+     0.504
+    ],
+    [
+     true,
+     0.701
+    ],
+    [
+     true,
+     0.59
+    ],
+    [
+     false,
+     0.0
+    ],
+    [
+     true,
+     0.645
+    ]
+   ]
+  }
+ }
+}

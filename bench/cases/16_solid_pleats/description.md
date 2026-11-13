@@ -1,0 +1,1 @@
+A solid pleated part with 24 pleats. Base disc is 80 mm diameter, 8 mm thick (z 0..8). A 24-point star frustum exists from z 8..50. At z=8, tip radius is 36 mm; at z=50, tip radius is 24 mm. Groove bottoms are at 75% of the tip radius. One tip points along the +X axis. Top disc is 50 mm diameter, 6 mm thick (z 50..56). The part is fully solid with no holes.

@@ -12,6 +12,7 @@ import base64
 import io
 import os
 import sys
+import time
 from pathlib import Path
 
 from PIL import Image
@@ -32,7 +33,9 @@ def image_block(path: str | Path, max_side: int = 768) -> dict:
 
 
 class LLM:
-    def complete(self, system: str, content: list[dict], timeout: float | None = None) -> str:
+    def complete(self, system: str, content: list[dict], timeout: float | None = None,
+                 thinking: str | None = None, max_tokens: int | None = None) -> str:
+        """`thinking` (off | on | low | medium | high) and `max_tokens` override the settings for this call only."""
         raise NotImplementedError
 
 
@@ -44,6 +47,8 @@ class OpenAICompatLLM(LLM):
     FORGE_THINKING (off)        off = no thinking (vLLM / Qwen chat-template switch); on = server default
     FORGE_REASONING_EFFORT      passed through as reasoning_effort when set (and thinking is on)
     FORGE_TEMPERATURE, FORGE_SEED  sampling, for repeatable runs
+    complete(..., thinking=, max_tokens=) override thinking and the reply limit for one call
+    (the exact-program path thinks while the body path does not).
     """
 
     def __init__(self, model: str | None = None, timeout: float | None = None):
@@ -66,7 +71,19 @@ class OpenAICompatLLM(LLM):
         self.calls = 0
         self.tokens = 0
 
-    def complete(self, system: str, content: list[dict], timeout: float | None = None) -> str:
+    def _extra(self, thinking: str | None) -> dict:
+        """Request extras for one call; `thinking` None keeps the FORGE_THINKING setting."""
+        if thinking is None:
+            return self.extra
+        extra = {k: v for k, v in self.extra.items() if k not in ("extra_body", "reasoning_effort")}
+        if thinking in ("off", "0", "false", "no"):
+            extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+        elif thinking in ("low", "medium", "high"):
+            extra["reasoning_effort"] = thinking
+        return extra
+
+    def complete(self, system: str, content: list[dict], timeout: float | None = None,
+                 thinking: str | None = None, max_tokens: int | None = None) -> str:
         parts = []
         for block in content:
             if block["type"] == "text":
@@ -74,12 +91,12 @@ class OpenAICompatLLM(LLM):
             else:
                 parts.append({"type": "image_url",
                               "image_url": {"url": "data:image/png;base64," + block["data"]}})
-        reply = self.client.chat.completions.create(
+        reply = self._create_retrying(
             model=self.model,
-            max_tokens=self.max_tokens,
+            max_tokens=max_tokens or self.max_tokens,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": parts}],
-            timeout=max(5.0, min(self.timeout, timeout)) if timeout else self.timeout,
-            **self.extra,
+            budget=max(5.0, min(self.timeout, timeout)) if timeout else self.timeout,
+            **self._extra(thinking),
         )
         choice = reply.choices[0]
         self.calls += 1
@@ -90,6 +107,37 @@ class OpenAICompatLLM(LLM):
         return choice.message.content or ""
 
 
+    def _create_retrying(self, budget: float, **kw):
+        """One chat call. A connection that cannot be made (refused, reset, a quick timeout, 502/503/504)
+        is retried with backoff for up to FORGE_LLM_RETRY_S (180) seconds, never past `budget`:
+        a tunnel that drops for a minute must not turn a run into a no-model run."""
+        import openai
+
+        t0 = time.monotonic()
+        retry_s = float(os.environ.get("FORGE_LLM_RETRY_S", "180"))
+        wait, tries = 2.0, 0
+        while True:
+            left = budget - (time.monotonic() - t0)
+            t_call = time.monotonic()
+            try:
+                return self.client.chat.completions.create(timeout=max(5.0, left), **kw)
+            except (openai.APIConnectionError, openai.InternalServerError) as exc:
+                status = getattr(exc, "status_code", None)
+                quick = time.monotonic() - t_call < 30          # a read timeout on a long reply is not retried
+                if isinstance(exc, openai.InternalServerError) and status not in (502, 503, 504):
+                    raise
+                if isinstance(exc, openai.APITimeoutError) and not quick:
+                    raise
+                spent = time.monotonic() - t0
+                if spent + wait > min(retry_s, budget - 5):
+                    raise
+                tries += 1
+                print(f"llm: {type(exc).__name__}{f' {status}' if status else ''}; retry {tries} in {wait:.0f}s "
+                      f"({spent:.0f}s spent)", file=sys.stderr, flush=True)
+                time.sleep(wait)
+                wait = min(wait * 2, 30.0)
+
+
 class ScriptedLLM(LLM):
     """Offline stand-in for tests: returns canned replies in order (last one repeats)."""
 
@@ -97,6 +145,6 @@ class ScriptedLLM(LLM):
         self.replies = list(replies)
         self.calls: list[tuple[str, list[dict]]] = []
 
-    def complete(self, system: str, content: list[dict], timeout: float | None = None) -> str:
+    def complete(self, system: str, content: list[dict], timeout: float | None = None, **_) -> str:
         self.calls.append((system, content))
         return self.replies[min(len(self.calls) - 1, len(self.replies) - 1)]
