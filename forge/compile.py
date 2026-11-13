@@ -452,6 +452,414 @@ def shell_bodies(body, task, t_end: float | None = None, log: list | None = None
     return out
 
 
+# --- star-section bodies (written by Qwen3.5-27B, reviewed) -------------------------------
+
+def star_bodies(turned, task, t_end: float | None = None, shell_t_end: float | None = None, log: list | None = None) -> list[tuple[str, object]]:
+    """
+    Rebuild a finned/pleated turned part as a star-section body.
+    
+    Takes a solid of revolution `turned` and carves V-grooves to match a star cross-section
+    observed in the axis view. Returns [("revolve-star", body)] followed by shell variants,
+    or [] if the part does not qualify or no valid star body is found.
+    """
+    import time
+    import math
+    import numpy as np
+    import cadquery as cq
+    from scipy import stats
+    from scipy.ndimage import binary_erosion, binary_dilation
+    from PIL import Image
+
+    # Local imports to match the context provided
+    from .layers import AXIS_VIEW, rotation_order, _rgb, STROKE
+    from .geometry import shape_to_mesh
+    from .vision import edge_score, shape_score, target_masks, Camera, box_size
+    from .compile import revolve_axis, _largest_solid, shell_bodies
+
+    try:
+        # 1. Determine axis and rotation order
+        axis = revolve_axis(task)
+        if axis is None:
+            return []
+
+        stem = AXIS_VIEW[axis]
+        n0 = rotation_order(task, stem)
+        
+        # Check opposite view if the primary view doesn't show enough features
+        OPPOSITE = {"view_4_top": "view_5_bottom", "view_0_front": "view_1_back", "view_2_left": "view_3_right"}
+        
+        if n0 < 3:
+            opposite_stem = OPPOSITE.get(stem)
+            if opposite_stem:
+                n0_opposite = rotation_order(task, opposite_stem)
+                if n0_opposite >= 3:
+                    stem = opposite_stem
+                    n0 = n0_opposite
+                    if log is not None:
+                        log.append(f"star: pattern seen in {stem}")
+                else:
+                    return []
+            else:
+                return []
+        else:
+            if log is not None:
+                log.append(f"star: pattern seen in {stem}")
+
+        # Helper to refine fin count
+        def _fin_count(n0):
+            from scipy.ndimage import binary_erosion, binary_dilation as nd_binary_dilation
+            view = next((v for v in task.views if v.stem == stem), None)
+            if view is None:
+                return n0
+            img = _rgb(view)
+            part = img.min(axis=2) < 235
+            stroke = (img.max(axis=2) < STROKE) & binary_erosion(part, iterations=6)
+            if stroke.sum() < 200:
+                return n0
+            near = nd_binary_dilation(stroke, iterations=3)
+            ys, xs = np.nonzero(stroke)
+            mid = img.shape[0] / 2
+            dx, dy = xs + 0.5 - mid, ys + 0.5 - mid
+            keep = np.hypot(dx, dy) > 0.15 * img.shape[0] / 2
+            dx, dy = dx[keep], dy[keep]
+            
+            def match(angle):
+                x = np.clip((mid + dx * np.cos(angle) - dy * np.sin(angle)).astype(int), 0, img.shape[1] - 1)
+                y = np.clip((mid + dx * np.sin(angle) + dy * np.cos(angle)).astype(int), 0, img.shape[0] - 1)
+                return float(near[y, x].mean())
+
+            base_score = match(2 * np.pi / n0)
+            best_m = n0
+            for j in range(2, 50):
+                m = n0 * j
+                if m > 48:
+                    break
+                score = match(2 * np.pi / m)
+                if score >= base_score - 0.03 and score >= 0.5:
+                    best_m = m
+            return best_m
+
+        n = _fin_count(n0)
+        if log is not None:
+            log.append(f"star: fin count {n0} -> {n}")
+
+        if n < 3:
+            return []
+
+        k = "XYZ".index(axis)
+        size = box_size(task.facts)
+        centre = size / 2.0
+
+        # 2. Outer radius profile
+        mesh = shape_to_mesh(turned.val())
+        vertices = np.array(mesh.vertices)
+        
+        other_dims = [i for i in range(3) if i != k]
+        diffs = vertices[:, other_dims] - centre[other_dims]
+        radii = np.sqrt(np.sum(diffs**2, axis=1))
+        z_coords = vertices[:, k]
+
+        z_min, z_max = z_coords.min(), z_coords.max()
+        if z_max <= z_min:
+            return []
+        
+        num_bins = 120
+        bin_width = (z_max - z_min) / num_bins
+        bin_indices = ((z_coords - z_min) / bin_width).astype(int)
+        bin_indices = np.clip(bin_indices, 0, num_bins - 1)
+
+        r_profile = np.full(num_bins, -1.0)
+        for i in range(num_bins):
+            mask = bin_indices == i
+            if np.any(mask):
+                r_profile[i] = radii[mask].max()
+        
+        valid_bins = r_profile > 0
+        if not np.any(valid_bins):
+            return []
+
+        # 3. Tapered section
+        z_centers = z_min + (np.arange(num_bins) + 0.5) * bin_width
+        dr_dz = np.gradient(r_profile, bin_width)
+        
+        slope_threshold = 0.05
+        residual_threshold = 0.02 * max(size)
+        min_run_length_mm = 0.25 * size[k]
+        min_run_bins = int(min_run_length_mm / bin_width)
+        if min_run_bins < 1:
+            min_run_bins = 1
+
+        best_run = None
+        best_run_len = 0
+
+        for start in range(num_bins):
+            if not valid_bins[start]:
+                continue
+            
+            current_slope = dr_dz[start]
+            if abs(current_slope) < slope_threshold:
+                continue
+            
+            direction = 1 if current_slope > 0 else -1
+            
+            end = start
+            while end < num_bins - 1:
+                if not valid_bins[end]:
+                    break
+                if dr_dz[end] * direction < slope_threshold:
+                    break
+                end += 1
+            
+            run_len = end - start
+            if run_len < min_run_bins:
+                continue
+            
+            z_run = z_centers[start:end]
+            r_run = r_profile[start:end]
+            
+            coeffs = np.polyfit(z_run, r_run, 1)
+            line = np.polyval(coeffs, z_run)
+            residuals = np.abs(r_run - line)
+            max_res = np.max(residuals)
+            
+            if max_res < residual_threshold:
+                if run_len > best_run_len:
+                    best_run_len = run_len
+                    best_run = (start, end, coeffs)
+        
+        if best_run is None:
+            return []
+        
+        start_bin, end_bin, coeffs = best_run
+        z0_bin = start_bin + 1
+        z1_bin = end_bin - 1
+        
+        if z1_bin <= z0_bin:
+            return []
+
+        z0 = z_centers[z0_bin]
+        z1 = z_centers[z1_bin]
+        r0 = np.polyval(coeffs, z0)
+        r1 = np.polyval(coeffs, z1)
+
+        # 4. Phase of the fins from the axis view
+        view = next((v for v in task.views if v.stem == stem), None)
+        if view is None:
+            return []
+        
+        img = _rgb(view)
+        cam = Camera(stem, size, img.shape[0])
+        
+        stroke = img.max(axis=2) < STROKE
+        ys, xs = np.nonzero(stroke)
+        
+        if len(xs) == 0:
+            return []
+
+        pts_px = np.c_[xs, ys].astype(float)
+        ab = cam.plane_mm(pts_px)
+        
+        rel_a = ab[:, 0] - cam.c_r
+        rel_b = ab[:, 1] - cam.c_u
+        
+        rad_plane = np.hypot(rel_a, rel_b)
+        
+        r_min, r_max = min(r0, r1), max(r0, r1)
+        mask_radius = (rad_plane >= r_min) & (rad_plane <= r_max)
+        
+        if not np.any(mask_radius):
+            return []
+        
+        rel_a = rel_a[mask_radius]
+        rel_b = rel_b[mask_radius]
+        
+        angles = np.arctan2(rel_b, rel_a)
+        
+        period = np.pi / n
+        folded = angles % period
+        
+        hist, bin_edges = np.histogram(folded, bins=90, range=(0, period))
+        peak_bin = np.argmax(hist)
+        phi0 = (bin_edges[peak_bin] + bin_edges[peak_bin + 1]) / 2
+        
+        candidates = [phi0, phi0 + np.pi / n]
+        
+        # 5. Iterate candidates and q
+        q_values = [0.45, 0.55, 0.65, 0.75, 0.85]
+        best_score = -1.0
+        best_body = None
+        best_params = None
+        
+        masks = target_masks(task)
+        
+        base_sil = shape_score(shape_to_mesh(turned.val()), task, masks)["mean"]
+        base_edge = edge_score(shape_to_mesh(turned.val()), task)["all"]
+        
+        # Precompute axis vector for 3D conversion
+        axis_vec = np.zeros(3)
+        axis_vec[k] = 1.0
+
+        for phase_idx, phase in enumerate(candidates):
+            # Check deadline for outer loop
+            if t_end is not None and time.monotonic() > t_end:
+                break
+            
+            # Early stop for second phase: if first candidate of this phase is too low, skip phase
+            if phase_idx > 0:
+                # We need to check the first candidate of this phase against the global best
+                # But we haven't run it yet. The logic says: "after the first phase, skip the second phase 
+                # entirely if its first candidate scores more than 0.08 below the best edge score found so far."
+                # This implies we must run the first candidate of the second phase to check this condition.
+                # However, the prompt says "skip the second phase entirely if its first candidate scores...".
+                # This implies we run the first candidate, check the score, and if it's bad, we break the phase loop.
+                # But we also have the "two consecutive drops" logic inside the phase.
+                # Let's implement the check immediately after the first candidate of the phase.
+                pass
+
+            phase_edge_scores = []
+            consecutive_drops = 0
+            
+            for q_idx, q in enumerate(q_values):
+                # Check deadline for inner loop
+                if t_end is not None and time.monotonic() > t_end:
+                    break
+                
+                tools = []
+                try:
+                    # Define helper inside loop to capture current phase, q, cam, etc.
+                    # But we need to iterate i to create n tools.
+                    
+                    for i in range(n):
+                        a = phase + 2 * np.pi * i / n
+                        b = a + 2 * np.pi / n
+                        m = (a + b) / 2
+                        
+                        def make_poly(z, r, angle_a, angle_b, angle_m, q_val):
+                            pts = []
+                            # Point 1: 1.04 r at a
+                            rad1 = 1.04 * r
+                            p1 = np.array([rad1 * np.cos(angle_a), rad1 * np.sin(angle_a)])
+                            # Point 2: q r at m
+                            rad2 = q_val * r
+                            p2 = np.array([rad2 * np.cos(angle_m), rad2 * np.sin(angle_m)])
+                            # Point 3: 1.04 r at b
+                            rad3 = 1.04 * r
+                            p3 = np.array([rad3 * np.cos(angle_b), rad3 * np.sin(angle_b)])
+                            # Point 4: 1.6 r at m
+                            rad4 = 1.6 * r
+                            p4 = np.array([rad4 * np.cos(angle_m), rad4 * np.sin(angle_m)])
+                            
+                            def to_3d(p2d):
+                                return centre + p2d[0] * cam.r + p2d[1] * cam.u + (z - centre[k]) * axis_vec
+                            
+                            pts.append(to_3d(p1))
+                            pts.append(to_3d(p2))
+                            pts.append(to_3d(p3))
+                            pts.append(to_3d(p4))
+                            return pts
+
+                        poly_z0 = make_poly(z0, r0, a, b, m, q)
+                        poly_z1 = make_poly(z1, r1, a, b, m, q)
+                        
+                        wire_z0 = cq.Wire.makePolygon([cq.Vector(*p) for p in poly_z0], close=True)
+                        wire_z1 = cq.Wire.makePolygon([cq.Vector(*p) for p in poly_z1], close=True)
+                        
+                        tool = cq.Solid.makeLoft([wire_z0, wire_z1], True)
+                        tools.append(tool)
+                    
+                except Exception:
+                    continue
+                
+                # Cut
+                try:
+                    body = turned.val().cut(*tools)
+                    body = _largest_solid(body)
+                    if body is None or body.Volume() <= 0:
+                        continue
+                except Exception:
+                    continue
+                
+                # Volume check
+                target_vol = task.facts["volume_mm3"]
+                if body.Volume() < 0.985 * target_vol:
+                    continue
+                
+                # Shape score check
+                try:
+                    score_res = shape_score(shape_to_mesh(body), task, masks)
+                    if score_res["mean"] < base_sil - 0.01:
+                        continue
+                except Exception:
+                    continue
+                
+                # Edge score
+                try:
+                    score = edge_score(shape_to_mesh(body), task)["all"]
+                except Exception:
+                    continue
+                
+                # Log
+                vol_ratio = body.Volume() / target_vol
+                if log is not None:
+                    log.append(f"star n={n} phase={phase:.3f} q={q:.2f}: volume x{vol_ratio:.2f}, edge {score:.3f}")
+                
+                # Track scores for early stopping logic
+                phase_edge_scores.append(score)
+                
+                # Update global best
+                if score > best_score:
+                    best_score = score
+                    best_body = body
+                    best_params = (phase, q)
+                
+                # Early stop logic: two consecutive drops
+                # A candidate that is rejected (no score) does not count as a drop.
+                # We only have scores here if we reached this point.
+                if len(phase_edge_scores) >= 2:
+                    if phase_edge_scores[-1] < phase_edge_scores[-2]:
+                        consecutive_drops += 1
+                    else:
+                        consecutive_drops = 0
+                    
+                    if consecutive_drops >= 2:
+                        if log is not None:
+                            log.append(f"star: phase {phase:.3f} stopped due to 2 consecutive drops")
+                        break
+                
+                # Early stop for second phase: check first candidate
+                if phase_idx > 0 and q_idx == 0:
+                    if best_score - score > 0.08:
+                        if log is not None:
+                            log.append(f"star: phase {phase:.3f} skipped, first candidate {score:.3f} is >0.08 below best {best_score:.3f}")
+                        break # Break the q loop, effectively skipping the rest of this phase
+        
+        # 6. Keep the candidate with the highest edge score
+        if best_body is None:
+            return []
+        
+        if best_score < base_edge + 0.005:
+            if log is not None:
+                log.append(f"star: best edge {best_score:.3f} not > base {base_edge:.3f} + 0.005")
+            return []
+        
+        # Wrap it
+        result_body = cq.Workplane("XY").newObject([best_body])
+        
+        # 7. Shell bodies
+        # Pass shell_t_end to shell_bodies, not t_end
+        shells = shell_bodies(result_body, task, t_end=shell_t_end, log=log)
+        result = [("revolve-star", result_body)]
+        for variant, shell_wp in shells:
+            result.append((f"revolve-star-shell-{variant}", shell_wp))
+        
+        return result
+
+    except Exception as e:
+        if log is not None:
+            log.append(f"star_bodies failed: {e}")
+        return []
+
+
 # --- bodies from silhouettes -----------------------------------------------------------
 
 def _ring_wire(ring_mm: np.ndarray, cam: Camera, depth: float):
@@ -663,6 +1071,21 @@ def iter_body_sources(task, t_end: float | None = None):
                 yield out[-1]
         except Exception as exc:
             print(f"{task.name}: body source revolve-radial failed: {type(exc).__name__}: {exc}", flush=True)
+    # A turned body whose axis view shows n-fold strokes may be a star section (V-grooved fins or pleats)
+    # that no outline shows: star_bodies() cuts the grooves (depth chosen by the line drawing) and offers
+    # the thin-walled shells of that body. FORGE_STAR=off disables it; FORGE_STAR_S caps its time.
+    if turned and os.environ.get("FORGE_STAR", "on").lower() not in ("off", "0", "no", "false"):
+        import time as _time
+        cap = _time.monotonic() + float(os.environ.get("FORGE_STAR_S", "240"))
+        # hollowing a star body costs about a minute of kernel time per wall tried: off until it is faster
+        star_shell = os.environ.get("FORGE_STAR_SHELL", "off").lower() in ("on", "1", "yes", "true")
+        log = []
+        for name, star in star_bodies(turned[0], task, t_end=min(cap, t_end) if t_end else cap,
+                                      shell_t_end=t_end if star_shell else _time.monotonic(), log=log):
+            out.append((name, star))
+            yield out[-1]
+        for line in log:
+            print(f"{task.name}: star: {line}", flush=True)
     # The tightest hull again, with the space in front of every face a bore starts from removed
     # (forge/layers.py): pockets and recessed faces that no outline shows.
     hulls = [b for n, b in out if n == "hull5"] or [b for n, b in out if n == "hull3"]
@@ -714,7 +1137,10 @@ def iter_body_sources(task, t_end: float | None = None):
             print(f"{task.name}: body source hull-pockets failed: {type(exc).__name__}: {exc}", flush=True)
     # ... and, when the hull is far too full with too little surface, hollowed into a thin-walled
     # shell whose wall is solved from the facts' volume (shell_bodies above).
-    if hulls and os.environ.get("FORGE_SHELL", "on").lower() not in ("off", "0", "no", "false"):
+    # (not when a star body exists: its own shells keep the grooves, a round hull shell does not; the
+    # estimate cannot tell them apart, the true score on a hollow pleated cone was 0.615 against 0.70+)
+    starred = any(n.startswith("revolve-star") for n, _ in out)
+    if hulls and not starred and os.environ.get("FORGE_SHELL", "on").lower() not in ("off", "0", "no", "false"):
         try:
             import time
 
