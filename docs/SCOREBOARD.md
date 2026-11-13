@@ -254,3 +254,16 @@ The hidden set is 9 different parts in the same format and tiers. Do not tune to
 Folders 16–19 were removed after scoring; their files are in git history (commits `f3a6ff5`,
 `dc74816`, `db6d99d`, `f4a55e0`). Decisions: shell off (`FORGE_SHELL_VOL=99`), envelope fill
 off (default), 27B kept. `main` holds 14's nine files and 14's settings plus the shell switch.
+
+## 13 Nov: v6 (exact programs > bodies > hull), facts from the brief
+
+Local estimate against the real facts (`scripts/rescore.py`), not the leaderboard; not submitted.
+
+| Approach | Estimate | Leaderboard | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | Source per part |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `v6-nomodel` (run, real facts) | 0.801 | not submitted | 0.91 | 0.86 | 0.92 | 0.83 | 0.85 | 0.52 | 0.66 | 0.87 | 0.80 | hull everywhere |
+| `20-v6-exact` | 0.812 | not submitted | 0.91 | 0.86 | 0.92 | 0.88 | 0.84 | 0.59 | 0.63 | 0.87 | 0.80 | exact 1; body 4, 6; hull rest |
+
+`20-v6-exact` is built from the brief alone (`FORGE_IGNORE_FACTS=1`), so parts 5 and 7 lose what
+the brief does not say (as in P0); `v6-nomodel` used facts.json. The exact program on part 1 matches all
+eight views (worst-view IoU 0.989, volume x0.999) but scores the same estimate as the hull it replaced.

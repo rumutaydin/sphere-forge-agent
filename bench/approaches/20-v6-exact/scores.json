@@ -1,0 +1,99 @@
+{
+ "what": "v6: exact programs (2 per part, 3 rounds) > bodies > hull, facts from the brief, 27B; exact won part 1, bodies 4 and 6",
+ "n_cases": 9,
+ "leaderboard": null,
+ "mean_estimate": 0.812,
+ "holes_right": 8,
+ "cases": {
+  "test_case_1": {
+   "valid": true,
+   "estimate": 0.9142,
+   "self_score": 0.9998,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.999,
+   "area_ratio": 1.0,
+   "silhouette_iou": 0.9928
+  },
+  "test_case_2": {
+   "valid": true,
+   "estimate": 0.8636,
+   "self_score": 0.9743,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.086,
+   "area_ratio": 0.993,
+   "silhouette_iou": 0.9886
+  },
+  "test_case_3": {
+   "valid": true,
+   "estimate": 0.9153,
+   "self_score": 0.998,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 0.996,
+   "area_ratio": 0.997,
+   "silhouette_iou": 0.9981
+  },
+  "test_case_4": {
+   "valid": true,
+   "estimate": 0.881,
+   "self_score": 0.9853,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.043,
+   "area_ratio": 1.008,
+   "silhouette_iou": 0.9792
+  },
+  "test_case_5": {
+   "valid": true,
+   "estimate": 0.8352,
+   "self_score": 0.9294,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.149,
+   "area_ratio": 0.894,
+   "silhouette_iou": 0.9935
+  },
+  "test_case_6": {
+   "valid": true,
+   "estimate": 0.5941,
+   "self_score": 0.728,
+   "dimensions": 0.998,
+   "holes": 1.0,
+   "volume_ratio": 1.91,
+   "area_ratio": 0.571,
+   "silhouette_iou": 0.9114
+  },
+  "test_case_7": {
+   "valid": true,
+   "estimate": 0.6334,
+   "self_score": 0.8396,
+   "dimensions": 1.0,
+   "holes": 0.9,
+   "volume_ratio": 1.745,
+   "area_ratio": 0.959,
+   "silhouette_iou": 0.9862
+  },
+  "test_case_8": {
+   "valid": true,
+   "estimate": 0.8704,
+   "self_score": 0.973,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.066,
+   "area_ratio": 0.972,
+   "silhouette_iou": 0.9823
+  },
+  "test_case_9": {
+   "valid": true,
+   "estimate": 0.8008,
+   "self_score": 0.8605,
+   "dimensions": 1.0,
+   "holes": 1.0,
+   "volume_ratio": 1.231,
+   "area_ratio": 0.722,
+   "silhouette_iou": 0.996
+  }
+ }
+}

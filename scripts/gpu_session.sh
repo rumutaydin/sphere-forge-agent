@@ -126,6 +126,7 @@ if [ -n "$stale" ]; then
   pkill -f 'ssh -N.*8000:localhost:8000' 2>/dev/null
   sleep 1
 fi
+ssh -O exit "$INSTANCE" >/dev/null 2>&1 || true     # an old mux master may still hold a forward of port 8000
 
 # --- a. start the instance ------------------------------------------------------------------------
 STARTED=1
@@ -173,7 +174,10 @@ case "$OPENAI_BASE_URL" in
     say "starting this script's reconnecting tunnel loop"
     set -m
     ( while true; do
-        ssh -N "${SSH_OPTS[@]}" -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes \
+        # ControlPath=none: brev's ssh config has ControlMaster auto + ControlPersist 10m, so a plain
+        # `ssh -N -L` hands the forward to the shared mux master and exits; the forward then dies with
+        # the master 10 min after the last ssh (the 03:37 failure). Own process, own connection.
+        ssh -N "${SSH_OPTS[@]}" -o ControlMaster=no -o ControlPath=none -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes \
           -L 8000:localhost:8000 "$INSTANCE"
         echo "[tunnel $(date +%H:%M:%S)] ssh exited ($?); reconnecting in 3 s" >&2
         sleep 3
