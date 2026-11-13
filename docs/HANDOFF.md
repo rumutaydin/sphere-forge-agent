@@ -19,8 +19,9 @@ sloped pockets (parts 6 and 7).
 
 **What `main` will hold once Robin pushes:** branch `a/v6` merged into `main` (merge made
 locally, not pushed). It contains everything teammates pushed to `origin/main` up to
-`b274d27` (star step for V-grooved parts in `forge/compile.py`, approaches 20-qwen-residuals,
-21-qwen-profile-hints, 22-star-27b, the fine-tuned 27B submission), merged into `a/v6` first.
+`e5bd279` (star step for V-grooved parts in `forge/compile.py`, approaches 20-qwen-residuals,
+21-qwen-profile-hints, 22-star-27b, the fine-tuned 27B and the Kimi K3.1 Pro submissions; their
+outputs are replaced, no code of theirs is dropped), merged into `a/v6` first.
 `artifacts/outputs` = approach `20-v6-exact` (`runs/v6-full2`: exact programs on, brief facts,
 27B; local estimate 0.812 against real facts; no leaderboard value yet). These files were made
 before the star step was merged and with `FORGE_EXACT=2`, so a re-run of the image will not
