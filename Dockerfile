@@ -30,6 +30,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 HOME=/tmp
 #     OPENAI_MODEL=<model>
 # Parts without facts.json (the hidden set) are built from the brief: forge/brief.py. FORGE_IGNORE_FACTS=1
 # would do that on parts that have one too; it is left unset, so facts.json is used wherever it exists.
-ENV FORGE_THINKING=off FORGE_CANDIDATES=3 FORGE_CARVE=0 FORGE_MODEL_MARGIN=0.02 FORGE_EDGE_VETO=0.015 FORGE_SHELL_VOL=99 FORGE_WORKERS=9 FORGE_BUDGET_S=3000
+ENV FORGE_THINKING=off FORGE_CANDIDATES=3 FORGE_EXACT=0 FORGE_CARVE=0 FORGE_MODEL_MARGIN=0.02 FORGE_EDGE_VETO=0.015 FORGE_SHELL_VOL=99 FORGE_WORKERS=9 FORGE_BUDGET_S=3000
 
 CMD ["python", "scripts/main.py"]
