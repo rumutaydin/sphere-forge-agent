@@ -120,3 +120,20 @@ def test_model_bores_are_checked_against_the_brief():
     assert [(g["diameter"], g["centres"]) for g in out["cylindrical_holes_and_bores"]] == [(12.0, [[25.0, 30.0, 20.0]])]
     assert refine_with_model(LLM(), brief, facts) == facts              # a dead endpoint changes nothing
     assert refine_with_model(ScriptedLLM(["no json here"]), brief, facts) == facts
+
+
+def test_partial_facts_json_is_filled_from_the_brief(tmp_path):
+    from forge.cases import load_facts
+
+    case = _folder(tmp_path, (CASES[0] / "description.md").read_text()) / "test_case_1"
+    real = json.loads((CASES[0] / "facts.json").read_text())
+    shutil.copy(CASES[0] / "facts.json", case / "facts.json")
+    assert load_facts(case) == real                                    # full facts.json: unchanged
+    (case / "facts.json").write_text(json.dumps({"bounding_box_mm": {"x": 1.0, "y": 2.0, "z": 3.0}}))
+    got = load_facts(case)
+    assert got["bounding_box_mm"] == {"x": 1.0, "y": 2.0, "z": 3.0}      # present keys are kept
+    assert {"volume_mm3", "through_holes_genus", "cylindrical_holes_and_bores"} <= set(got)
+    assert got["through_holes_genus"] == real["through_holes_genus"]
+    assert not any(k.startswith("_") for k in got)                     # never marked as from the brief
+    (case / "facts.json").write_text("{ not json")
+    assert load_facts(case)["_source"] == "brief"                      # unreadable: the brief, as before

@@ -40,6 +40,11 @@ def load_facts(task_dir: str | Path, description: str | None = None, views: list
             facts = json.loads((d / "facts.json").read_text())
             box = facts.get("bounding_box_mm") or {}
             if all(float(box.get(k, 0)) > 0 for k in "xyz"):
+                try:        # a partial facts.json: fill only the keys it lacks from the brief
+                    brief = _brief_facts(d, description, views)
+                    facts = {**facts, **{k: v for k, v in brief.items() if k not in facts and not k.startswith("_")}}
+                except Exception:
+                    pass
                 return facts
         except Exception:
             pass        # missing or unreadable: the brief has the numbers too
@@ -51,6 +56,10 @@ def load_facts(task_dir: str | Path, description: str | None = None, views: list
                 return kept
         except Exception:
             pass
+    return _brief_facts(d, description, views)
+
+
+def _brief_facts(d: Path, description: str | None, views: list[Path] | None) -> dict:
     from .brief import facts_from_brief
 
     if description is None:
