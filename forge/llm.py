@@ -12,6 +12,7 @@ import base64
 import io
 import os
 import sys
+import time
 from pathlib import Path
 
 from PIL import Image
@@ -90,11 +91,11 @@ class OpenAICompatLLM(LLM):
             else:
                 parts.append({"type": "image_url",
                               "image_url": {"url": "data:image/png;base64," + block["data"]}})
-        reply = self.client.chat.completions.create(
+        reply = self._create_retrying(
             model=self.model,
             max_tokens=max_tokens or self.max_tokens,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": parts}],
-            timeout=max(5.0, min(self.timeout, timeout)) if timeout else self.timeout,
+            budget=max(5.0, min(self.timeout, timeout)) if timeout else self.timeout,
             **self._extra(thinking),
         )
         choice = reply.choices[0]
@@ -104,6 +105,37 @@ class OpenAICompatLLM(LLM):
             print(f"llm: reply cut off at FORGE_MAX_TOKENS={self.max_tokens} "
                   f"({len(choice.message.content or '')} chars of answer)", file=sys.stderr, flush=True)
         return choice.message.content or ""
+
+
+    def _create_retrying(self, budget: float, **kw):
+        """One chat call. A connection that cannot be made (refused, reset, a quick timeout, 502/503/504)
+        is retried with backoff for up to FORGE_LLM_RETRY_S (180) seconds, never past `budget`:
+        a tunnel that drops for a minute must not turn a run into a no-model run."""
+        import openai
+
+        t0 = time.monotonic()
+        retry_s = float(os.environ.get("FORGE_LLM_RETRY_S", "180"))
+        wait, tries = 2.0, 0
+        while True:
+            left = budget - (time.monotonic() - t0)
+            t_call = time.monotonic()
+            try:
+                return self.client.chat.completions.create(timeout=max(5.0, left), **kw)
+            except (openai.APIConnectionError, openai.InternalServerError) as exc:
+                status = getattr(exc, "status_code", None)
+                quick = time.monotonic() - t_call < 30          # a read timeout on a long reply is not retried
+                if isinstance(exc, openai.InternalServerError) and status not in (502, 503, 504):
+                    raise
+                if isinstance(exc, openai.APITimeoutError) and not quick:
+                    raise
+                spent = time.monotonic() - t0
+                if spent + wait > min(retry_s, budget - 5):
+                    raise
+                tries += 1
+                print(f"llm: {type(exc).__name__}{f' {status}' if status else ''}; retry {tries} in {wait:.0f}s "
+                      f"({spent:.0f}s spent)", file=sys.stderr, flush=True)
+                time.sleep(wait)
+                wait = min(wait * 2, 30.0)
 
 
 class ScriptedLLM(LLM):

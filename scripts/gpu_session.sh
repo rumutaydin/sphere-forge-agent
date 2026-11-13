@@ -39,7 +39,8 @@ SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-
 
 T0=$(date +%s)
 STARTED=0          # 1 once `brev start` has been issued: from then on the instance is stopped on exit
-TUNNEL_PID=""      # set only if this script started a tunnel
+TUNNEL_PID=""      # the reconnecting tunnel loop this script owns
+WATCH_PID=""       # the /models watchdog
 CMD_PID=""
 CLEANED=0
 STATUS=0
@@ -76,7 +77,12 @@ cleanup() {
     sleep 2
     kill -KILL -- "-$CMD_PID" 2>/dev/null || kill -KILL "$CMD_PID" 2>/dev/null
   fi
-  if [ -n "$TUNNEL_PID" ]; then kill "$TUNNEL_PID" 2>/dev/null; say "tunnel started by this script closed"; fi
+  if [ -n "$WATCH_PID" ]; then kill "$WATCH_PID" 2>/dev/null; fi
+  if [ -n "$TUNNEL_PID" ]; then
+    kill -- "-$TUNNEL_PID" 2>/dev/null || kill "$TUNNEL_PID" 2>/dev/null
+    pkill -f "ssh -N .*-L 8000:localhost:8000 $INSTANCE" 2>/dev/null
+    say "tunnel loop started by this script closed"
+  fi
   if [ "$STARTED" = 1 ]; then
     if ! stop_instance; then
       say "!!!!! THE INSTANCE MAY STILL BE RUNNING (\$$RATE per hour). Stop it by hand: brev stop $INSTANCE, or in the Brev console. !!!!!"
@@ -111,6 +117,15 @@ set -a; . "$ENV_FILE"; set +a
 [ -f "$ROOT/scripts/serve_vllm.sh" ] || fail "scripts/serve_vllm.sh not found" 2
 cd "$ROOT" || fail "cannot enter $ROOT" 2
 say "instance $INSTANCE, env $(basename "$ENV_FILE"), model $OPENAI_MODEL, $# command(s), cap ${MAX_MIN} min (about \$$(awk -v m="$MAX_MIN" -v r="$RATE" 'BEGIN{printf "%.2f", m*r/60}') at most)"
+
+# --- 0b. stale tunnels: other ssh -N forwards of port 8000 (and their reconnect loops) fight over the port
+stale="$(pgrep -f 'ssh -N.*8000:localhost:8000' ; pgrep -f 'while true; do ssh -N.*8000')"
+if [ -n "$stale" ]; then
+  say "killing stale tunnel processes: $(echo $stale)"
+  pkill -f 'while true; do ssh -N.*8000' 2>/dev/null
+  pkill -f 'ssh -N.*8000:localhost:8000' 2>/dev/null
+  sleep 1
+fi
 
 # --- a. start the instance ------------------------------------------------------------------------
 STARTED=1
@@ -155,25 +170,28 @@ models() { curl -sf -m 10 -H "Authorization: Bearer $OPENAI_API_KEY" "${OPENAI_B
 wait_models() { local end=$(( $(date +%s) + $1 )); until models; do [ "$(date +%s)" -lt "$end" ] || return 1; sleep 3; done; }
 case "$OPENAI_BASE_URL" in
   *localhost:8000*|*127.0.0.1:8000*)
-    if models; then
-      say "tunnel on localhost:8000 answers"
-    else
-      if pgrep -f "ssh -N" >/dev/null 2>&1; then
-        say "an 'ssh -N' process is running (a reconnecting tunnel?); giving it 60 s"
-        wait_models 60 || true
-      fi
-      if ! models; then
-        say "no tunnel answers: starting one"
-        ssh -N "${SSH_OPTS[@]}" -o ServerAliveInterval=15 -o ExitOnForwardFailure=yes -L 8000:localhost:8000 "$INSTANCE" &
-        TUNNEL_PID=$!
-        wait_models 90 || fail "no answer from ${OPENAI_BASE_URL%/}/models through the tunnel (is port 8000 taken by a dead tunnel? pkill -f 'ssh -N')" 5
-      fi
-      say "tunnel on localhost:8000 answers"
-    fi ;;
+    say "starting this script's reconnecting tunnel loop"
+    set -m
+    ( while true; do
+        ssh -N "${SSH_OPTS[@]}" -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes \
+          -L 8000:localhost:8000 "$INSTANCE"
+        echo "[tunnel $(date +%H:%M:%S)] ssh exited ($?); reconnecting in 3 s" >&2
+        sleep 3
+      done ) &
+    TUNNEL_PID=$!
+    set +m
+    wait_models 120 || fail "no answer from ${OPENAI_BASE_URL%/}/models through the tunnel" 5
+    say "tunnel on localhost:8000 answers" ;;
   *)
     wait_models 60 || fail "no answer from ${OPENAI_BASE_URL%/}/models" 5
     say "endpoint answers (no tunnel needed for this address)" ;;
 esac
+( while true; do
+    sleep 60
+    if models; then echo "[watchdog $(date +%H:%M:%S)] /models ok" >&2
+    else echo "[watchdog $(date +%H:%M:%S)] !!! /models FAILED" >&2; fi
+  done ) &
+WATCH_PID=$!
 
 # --- d. the commands ------------------------------------------------------------------------------------
 n=0

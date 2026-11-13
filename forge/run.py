@@ -115,6 +115,8 @@ def run_all(input_dir: Path, output_dir: Path, agent: Agent | None = None, only:
     # pass 2: the model, worst parts first; a part that is already good is left alone.
     skip_above = float(os.environ.get("FORGE_SKIP_ABOVE", "0.90"))
     has_model = type(agent.llm).__name__ != "LLM"
+    if type(agent.llm).__name__ == "OpenAICompatLLM":      # a real endpoint (not the tests' scripted one)
+        wait_for_endpoint(min(float(os.environ.get("FORGE_ENDPOINT_WAIT_S", "300")), max(deadline - time.monotonic() - 600, 0)))
 
     def one(task: Task) -> dict:
         floor = floors[task.name]
@@ -137,6 +139,37 @@ def run_all(input_dir: Path, output_dir: Path, agent: Agent | None = None, only:
     write_run_summary(summaries, floors, work, time.monotonic() - t0)
     print(f"done in {time.monotonic() - t0:.0f}s, work files in {work}", flush=True)
     return summaries
+
+
+def endpoint_up() -> tuple[bool, str]:
+    """GET OPENAI_BASE_URL/models with the key: (answers, what happened)."""
+    import urllib.request
+
+    url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/") + "/models"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY', '')}"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status == 200, f"{url}: HTTP {r.status}"
+    except Exception as exc:
+        return False, f"{url}: {type(exc).__name__}: {exc}"
+
+
+def wait_for_endpoint(max_s: float) -> bool:
+    """Right before the model pass: make sure the endpoint answers, waiting up to `max_s`.
+    If it never does, the run goes on (pass-1 files are written) with a loud line. Never raises."""
+    t0 = time.monotonic()
+    while True:
+        ok, what = endpoint_up()
+        if ok:
+            print(f"endpoint check: {what}", flush=True)
+            return True
+        spent = time.monotonic() - t0
+        if spent >= max_s:
+            print(f"!!!!! ENDPOINT DOWN before the model pass ({what}); waited {spent:.0f}s. "
+                  f"Going on: model calls will retry, else every part keeps its pass-1 file. !!!!!", flush=True)
+            return False
+        print(f"endpoint check: not answering ({what}); retrying, {spent:.0f}s of {max_s:.0f}s", flush=True)
+        time.sleep(15)
 
 
 def write_run_summary(summaries: list[dict], floors: dict, work: Path, seconds: float) -> None:
